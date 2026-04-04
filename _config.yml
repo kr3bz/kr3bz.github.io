@@ -4,6 +4,8 @@ lang: en
 
 timezone: Europe/Zagreb
 
+title: kr3bz
+
 tagline: BRAINSEGV
 
 description: >- 
@@ -24,10 +26,9 @@ social:
     - https://github.com/kr3bz
     - https://www.linkedin.com/in/ivanracic/
 
-
 analytics:
   google:
-    id: # fill in your Google Analytics ID
+    id: # todo
 
 # Page views settings
 pageviews:
