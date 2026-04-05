@@ -3,7 +3,7 @@ layout: post
 title: "How it all (probably) started: Dad vs Son (Blue vs Red)"
 date: 2026-04-04 13:37 +0200
 categories: [Personal]
-tags: [random]
+tags: [personal]
 ---
 
 No story can start without a famous Arnold Schwarzenegger quote "None of us can make it alone". Especially when you are in elementary school and you don't have money to buy a computer. Fortunately, my dad did and he decided to upgrade from an Atari to a Pentium 200 MMX. What a beast that was! You could actually have everything stored on a HDD, and not loaded directly from a floppy disk.
