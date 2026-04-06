@@ -2,7 +2,7 @@
 layout: post
 title: "Your printer has a new job"
 date: 2026-04-06 11:57 +0200
-categories: [research, c2]
+categories: [Research, C2]
 tags: [C2, IPPrintC2, "Command and Control"]
 ---
 
