@@ -14,7 +14,7 @@ At first, these protections were simple. He would take the power cable with him 
 
 Unlike his son, my father was smart, and he knew that something fishy is going on. Instead of asking me to tell the truth, he  trusted his instincts (that I would lie), and called the company from which he bought the computer to ask them what can he do to prevent / control this unwanted behavior. As putting me in a ZOO was not an option, he decided to set a pre-boot BIOS password. Next day when my father went to work, I immediately jumped at the computer and was literally in shock when I saw:
 
-![Thanks, Dad.](/assets/img/award-bios-password.jpeg)
+![Thanks, Dad.](/assets/img/1/award-bios-password.jpeg)
 
 I started to enter some passwords and soon reached the maximum number of password attempts (don't remember the exact value). I was frustrated. WHAT KIND OF SORCERY IS THIS? So, I would wait till the next day and try some other passwords - but no luck. And then, something magical happened. During the weekends I could play the computer for a few hours and I learned that you can actually send and receive something called "electronic email". While poking around the computer I discovered the username and password for POP3 authentication in a folder my father used to store his data. Was it possible that he used the same password for the BIOS? Should I try it now to check or wait until the next opportunity? No dear patience, you will not win. So, I immediately rebooted the computer, entered the password that my father used for POP3 auth to the BIOS prompt and BOOM! Ha! I still remember being so excited that playing games over that weekend was not fun at all, as it would be during the working week when my father is away.
 
