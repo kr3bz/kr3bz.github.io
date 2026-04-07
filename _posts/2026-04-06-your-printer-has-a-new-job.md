@@ -50,6 +50,8 @@ Finally I resolved all the issues and could focus on command execution. I opted 
 
 OK, what's next? Now I actually need to execute this command on the client. Welcome [Get-PrintJob](https://learn.microsoft.com/en-us/powershell/module/printmanagement/get-printjob?view=windowsserver2025-ps), a PowerShell cmdlet that allows you to retrieve a list of print jobs for the specified printer. For example `(Get-PrintJob XPS).DocumentName` will obtain the document name from the printer named `XPS`, and in our case that document name will be `aXBjb25maWcgL2FsbAo=`. Pass that to the `powershell -enc` and you will execute that Base64-encoded command.
 
+![Command execution on the client](/assets/img/2/ipprintc2-command-exec-via-document-name.png)
+
 I was very happy. But I still had some obstacles: 
 - while I have command execution, the C2 operator does not receive any command output
 - due to `-KeepPrintedJobs`, documents kept in the print queue broke the execution of subsequent commands, so I needed to clear the print queue periodically
@@ -196,7 +198,6 @@ SeTimeZonePrivilege           Change the time zone                 Disabled
 
 DESKTOP-PRINTINGFUN
 ```
-![Command execution on the client](/assets/img/2/ipprintc2-command-exec-via-document-name.png)
 
 Nothing is perfect, and this C2 is a text-book example. After this C2 was published it was never used again, nor maintained. It served its purpose. Also, it works as one-to-all — every client connected to the same printer receives the same commands. If you are insane enough to use this in a real engagement and need per-target control, set up additional printers and run multiple instances of IPPrintC2.ps1. Want binary exfiltration? How about no. Only works with ASCII text-based files. 
 
