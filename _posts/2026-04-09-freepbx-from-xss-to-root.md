@@ -232,13 +232,13 @@ File integrity monitoring on FreePBX module directories will catch this. Specifi
 # Responsible Disclosure, Fixes and Outro
 
 FreePBX fixed two of three vulnerabilities presented here:
-* https://github.com/FreePBX/security-reporting/security/advisories/GHSA-qgj3-f9gj-98v9
-* https://github.com/FreePBX/security-reporting/security/advisories/GHSA-c8g7-475j-fwcc
-* https://github.com/FreePBX/security-reporting/security/advisories/GHSA-rjqq-9f6j-qh7g
+* [https://github.com/FreePBX/security-reporting/security/advisories/GHSA-qgj3-f9gj-98v9](https://github.com/FreePBX/security-reporting/security/advisories/GHSA-qgj3-f9gj-98v9)
+* [https://github.com/FreePBX/security-reporting/security/advisories/GHSA-c8g7-475j-fwcc](https://github.com/FreePBX/security-reporting/security/advisories/GHSA-c8g7-475j-fwcc)
+* [https://github.com/FreePBX/security-reporting/security/advisories/GHSA-rjqq-9f6j-qh7g](https://github.com/FreePBX/security-reporting/security/advisories/GHSA-rjqq-9f6j-qh7g)
 
 Full advisories are also available here:
-* https://github.com/marlinkcyber/advisories/blob/main/advisories/MCSAID-2025-006-freepbx-os-command-injection.md
-* https://github.com/marlinkcyber/advisories/blob/main/advisories/MCSAID-2025-005-freepbx-reflected-xss-asterisk-http-status.md
+* [https://github.com/marlinkcyber/advisories/blob/main/advisories/MCSAID-2025-006-freepbx-os-command-injection.md](https://github.com/marlinkcyber/advisories/blob/main/advisories/MCSAID-2025-006-freepbx-os-command-injection.md)
+* [https://github.com/marlinkcyber/advisories/blob/main/advisories/MCSAID-2025-005-freepbx-reflected-xss-asterisk-http-status.md](https://github.com/marlinkcyber/advisories/blob/main/advisories/MCSAID-2025-005-freepbx-reflected-xss-asterisk-http-status.md)
 
 Some additional general recommendations, not only related to FreePBX:
 * Use a whitelist approach if you need to expose an admin interface. Ideally, allow access via LAN or VPN only.
