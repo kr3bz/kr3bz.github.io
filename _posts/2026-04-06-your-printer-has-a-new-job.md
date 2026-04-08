@@ -2,16 +2,19 @@
 layout: post
 title: "Your printer has a new job"
 date: 2026-04-06 11:57 +0200
+description: "Windows Printers abuse for Command and Control"
 categories: [Research, C2]
 tags: [C2, IPPrintC2, "Command and Control"]
 ---
 
+# Intro
 Hello my fellow toner cartridge replacers! The day has come to get some revenge on printers for all the drum kit replacements and document feeder cleanings. In this blog post I will cover research I did during 2021. While the [original](https://www.diverto.hr/en/blog/2024-05-03-MS-Windows-Printing-C2/) blog post is well written, it misses a story behind it.
 
 After finally putting my brain at rest during summer holidays in 2021, it soon got bored and missed the adrenaline rushes. I felt that I needed to create something by myself and "give something back" no matter how horrible it was. Regardless of how many certificate badges I collected or how well I did my pentest / Red teaming engagements, I was still reliant on tools and scripts that someone else made and I wanted to change this.
 
 Obtaining initial access via the usual C2 frameworks was not as straight-forward as before. So I thought - can I make my own C2? What could I use? Most of the [LOLBAS](https://lolbas-project.github.io) were triggering EDRs, so I needed something different. And then printers came to my mind, because all the organizations are using them and everyone has one installed. Even if someone does not - could I install one for them? If I managed to install a printer, what would I do with it? So I decided to start and figure it out along the way.
 
+# From Idea to C2 
 During my working days as a help-desk technician and a system administrator I would install the printers with Batch scripts or manually via the Add Printer dialog by using an AD-published printer or via TCP / HTTP / share name: ![Add Printer Dialog](/assets/img/2/add-printer-dialog.png) But a lot has changed since then. PowerShell became a go-to-for-everything, especially for offensive security. Therefore, I researched a bit and found out that you can install a printer via the [Add-Printer](https://learn.microsoft.com/en-us/powershell/module/printmanagement/add-printer?view=windowsserver2025-ps) cmdlet. 
 ```powershell
 Add-Printer
@@ -199,6 +202,7 @@ SeTimeZonePrivilege           Change the time zone                 Disabled
 DESKTOP-PRINTINGFUN
 ```
 
+# Detection and Outro
 Nothing is perfect, and this C2 is a text-book example. After this C2 was published it was never used again, nor maintained. It served its purpose. Also, it works as one-to-all — every client connected to the same printer receives the same commands. If you are insane enough to use this in a real engagement and need per-target control, set up additional printers and run multiple instances of IPPrintC2.ps1. Want binary exfiltration? How about no. Only works with ASCII text-based files. 
 
 IIS is exposed with anonymous authentication. With document names as commands in Base64. You really need to use the whitelist approach for network segments you are targeting. Use SSL to encrypt the IPP traffic unless you want to share your tasking with everyone on the wire. I also had a better name for this C2 - PrintC2, but WithSecure had published a blogpost where they used printers for lateral movement, and used that name.
