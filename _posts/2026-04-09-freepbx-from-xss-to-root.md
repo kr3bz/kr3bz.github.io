@@ -18,7 +18,7 @@ After visiting DefCon 33 in August 2025 and [realizing](https://www.linkedin.com
 
 Where to start? After a bit of searching I discovered that you can download an [ISO](https://downloads.freepbxdistro.org/ISO/SNG7-PBX16-64bit-2302-1.iso) for the complete solution. But there is a mention that the vulnerability is in a commercial [Endpoint Manager](https://www.freepbx.org/add-on/endpoint-manager-ucp-for-epm/) module and it costs 99$ for a year. Whaaat? Hundred bucks? I was reluctant to invest and talked about it with my friend [Inkz](https://github.com/inkz1337) who didn't say much, but did this: 
 
-![Dodge this](/assets/img/3/inkz-to-the-rescue.png). 
+![Dodge this](/assets/img/3/inkz-to-the-rescue.png)
 
 I'll translate it for you: "Eat shit. Here's a half (of the amount). Go.". Fuck, guess I'm committed now, so let's go. 
 
