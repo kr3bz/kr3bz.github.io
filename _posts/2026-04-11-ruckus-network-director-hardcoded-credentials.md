@@ -182,7 +182,7 @@ What I have always found most entertaining in social media posts are over-exagge
 
 _"I discovered a stored XSS that needs to be triggered by someone visiting my profile and looking at my shikata_ga_nai-crafted SVG image. The only problem is that no-one will ever look at my profile cause you cannot look at other peoples profiles in this app. But let's say someone does, and if it is an admin user who also for his specific configuration removed all the normally-present secure cookie attributes, I could steal his cookie, escape the browser sandbox, execute code on the OS and then use my -1 day exploit for a Kernel driver which works if Mercury is in retrograde."_. 
 
-While I am sure and envy anyone that can actually do that - I am not the one. But I will certainly use the same over-exaggerating tactics here, as for mere fun for something I found later.
+While I am sure and admire anyone that can actually do that - I am not the one. But I will certainly use the same over-exaggerating tactics here, as for mere fun for something I found later.
 
 So, you got a shell on the Network Director, you can access the database and you obtained password hashes from other users. Let's assume that you actually cracked a password hash for some user and that their web UI password is the same as for the admin user used for terminal access. OK? Mercury still retrograde? OK. Then you can actually perform local privilege escalation, due to `/etc/sudoers` configuration:
 
@@ -193,7 +193,7 @@ admin ALL=(ALL) NOPASSWD:ALL
 sshuser ALL=(ALL) NOPASSWD:ALL
 ```
 
-I did privesc to root this way, because if you just `su admin` - you get dropped into that jail-ed shell (in `/opt/ruckuswireless/rnd-cli/rnd-cli.jar`):
+If you just `su admin` - you get dropped into that jail-ed shell (in `/opt/ruckuswireless/rnd-cli/rnd-cli.jar`), so I did it this way:
 
 ```bash
 bash-4.2$ id
