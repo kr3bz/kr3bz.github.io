@@ -174,7 +174,7 @@ uid=26(postgres) gid=26(postgres) groups=26(postgres)
 ruckus
 ```
 
-Same `postgres` user, same superuser database privileges, but now with OS access. Just a private key that ships identical across every single deployment. Let's see what else could go wrong.
+Same `postgres` user, same superuser database privileges, but now direct SSH access. Just a private key that ships identical across every single deployment. Let's see what else could go wrong.
 
 # Root? Maybe?
 
