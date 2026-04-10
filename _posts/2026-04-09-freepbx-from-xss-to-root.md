@@ -236,9 +236,9 @@ FreePBX fixed two of three vulnerabilities presented here:
 * [https://github.com/FreePBX/security-reporting/security/advisories/GHSA-c8g7-475j-fwcc](https://github.com/FreePBX/security-reporting/security/advisories/GHSA-c8g7-475j-fwcc)
 * [https://github.com/FreePBX/security-reporting/security/advisories/GHSA-rjqq-9f6j-qh7g](https://github.com/FreePBX/security-reporting/security/advisories/GHSA-rjqq-9f6j-qh7g)
 
-Full advisories are also available here:
-* [https://github.com/marlinkcyber/advisories/blob/main/advisories/MCSAID-2025-006-freepbx-os-command-injection.md](https://github.com/marlinkcyber/advisories/blob/main/advisories/MCSAID-2025-006-freepbx-os-command-injection.md)
-* [https://github.com/marlinkcyber/advisories/blob/main/advisories/MCSAID-2025-005-freepbx-reflected-xss-asterisk-http-status.md](https://github.com/marlinkcyber/advisories/blob/main/advisories/MCSAID-2025-005-freepbx-reflected-xss-asterisk-http-status.md)
+NVD:
+* [https://nvd.nist.gov/vuln/detail/CVE-2025-59429](https://nvd.nist.gov/vuln/detail/CVE-2025-59429)
+* [https://nvd.nist.gov/vuln/detail/CVE-2025-59051](https://nvd.nist.gov/vuln/detail/CVE-2025-59051)
 
 Some additional general recommendations, not only related to FreePBX:
 * Use a whitelist approach if you need to expose an admin interface. Ideally, allow access via LAN or VPN only.
