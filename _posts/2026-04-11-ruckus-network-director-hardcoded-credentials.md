@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Hardcoded for Your Convenience: RUCKUS Network Director CVE-2025-67304, CVE-2025-67305"
-date: 2026-04-11 13:04 +0200
+date: 2026-04-10 17:44 +0200
 description: "RUCKUS Network Director Hardcoded SSH keys and PostgreSQL Credentials"
 categories: [Vulnerability Research]
 tags: [Ruckus, CommScope, vulnerability-research, CVE-2025-67304, CVE-2025-67305]
