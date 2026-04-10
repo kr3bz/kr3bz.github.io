@@ -18,7 +18,7 @@ So we are talking about a product designed to scale up to a million access point
 
 # Hardcoded PostgreSQL credentials
 
-Ruckus allows you to [download](https://support.ruckuswireless.com/software/4590-ruckus-network-director-4-5-software-release) the Ruckus Network Director Open Virtualization Appliance (OVA). The latest version at the time was 4.5.0.52. OVA is nice as it is easy to load the appliance and poke around it. Setting up the RND appliance was pretty straight forward - basically you set an IP address, change the admin password for the appliance / web interface, configure it as a primary or secondary node and you are good to go. Here is what the web UI looks like (taken from official documentation):
+Ruckus allows you to [download](https://support.ruckuswireless.com/software/4590-ruckus-network-director-4-5-software-release) the Ruckus Network Director Open Virtualization Appliance (OVA). The latest version at the time was 4.5.0.52. OVA is nice as it is easy to load the appliance and poke around it. Setting up the RND appliance was pretty straight forward - basically you set an IP address, change the admin password for the appliance / web interface, configure it as a primary or secondary node and you are good to go. Here is what the web UI looks like (taken from official [documentation](https://support.ruckuswireless.com/documents/4782-ruckus-network-director-user-guide-4-5)):
 
 ![Ruckus Network Director](/assets/img/4/ruckus-network-director-web-interface.png)
 
