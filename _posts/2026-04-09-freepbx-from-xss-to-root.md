@@ -173,7 +173,7 @@ So there we have it, a working chain: steal a session cookie via XSS, use it to 
 
 # Local privilege escalation via Bash script modification (CVE-2026-27207)
 
-_A note before I continue: I have reported this vulnerability to FreePBX on October 13, 2025. I was in contact with the FreePBX security crew several times during this 6-month period. Sometimes they would respond, sometimes they would ignore my feedback requests. I helped as much as possible, at any time and responded within a day. I pushed the disclosure date for a couple of times. We are long past the industry-accepted 90-day disclosure timeline. I am, unfortunately, not a complete idiot and I know that some issues are harder to fix. So - I will not provide full exploitation steps but this is my kind of a compromise. This post will be updated with full details once the vulnerability is patched._
+_A note before I continue: this vulnerability was reported to FreePBX on October 13, 2025. Over the following six months I was in contact with their security team multiple times — responses were inconsistent. I tested patches, extended the disclosure deadline more than once, and tried to be as helpful as possible throughout the process. We are well past both the industry-accepted 90-day disclosure timeline and the extended 135-day timeline (90+45 grace period introduced by Google Project Zero), and one finding remains unpatched. I understand that fixing things takes time, so as a compromise I am withholding the full exploitation steps. This post will be updated once the patch is available._
 
 OK, now I've given myself an excuse and I can continue. 
 
@@ -215,8 +215,7 @@ Therefore, we need to bypass these checks and as the `asterisk` user owns the fi
 
 Now that we have everything in place, we need to wait the hook to execute. Be patient a bit and enjoy your root shell:
 
-![](/assets/img/3/freepbx-local-privilege-escalation.png)
-
+![FreePBX root privesc](/assets/img/3/freepbx-local-privilege-escalation.png)
 
 # Indicators of Compromise
 

