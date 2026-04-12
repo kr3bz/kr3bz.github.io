@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "$u990R7ing the riot: RUCKUS vRIoT CVE-2025-69426"
-date: 2026-04-12 13:58 +0200
+date: 2026-04-12 13:52 +0200
 description: "Obtaining unauthenticated remote root access on RUCKUS IoT Controller via hardcoded SSH credentials and Docker socket abuse"
 categories: [Vulnerability Research]
 tags: [Ruckus, CommScope, vulnerability-research, CVE-2025-69426]
