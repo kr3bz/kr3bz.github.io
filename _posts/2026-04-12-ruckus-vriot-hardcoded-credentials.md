@@ -9,7 +9,7 @@ tags: [Ruckus, CommScope, vulnerability-research, CVE-2025-69426]
 
 # Intro
 
-If you have read my [previous](/_posts/2026-04-11-ruckus-network-director-hardcoded-credentials.md) blog post, you might remember I have a fetish for controllers. Achieving access to a controller significantly increases the impact of a vulnerability as compromising the controller means compromising every device it manages. That kind of blast radius tends to help when you are chasing a perfect CVSS 10.0. Having success with the Network Director, I decided to look at other controllers RUCKUS provides and quickly discovered the IoT Controller (vRIoT).
+If you have read my [previous](/posts/ruckus-network-director-hardcoded-credentials/) blog post, you might remember I have a fetish for controllers. Achieving access to a controller significantly increases the impact of a vulnerability as compromising the controller means compromising every device it manages. That kind of blast radius tends to help when you are chasing a perfect CVSS 10.0. Having success with the Network Director, I decided to look at other controllers RUCKUS provides and quickly discovered the IoT Controller (vRIoT).
 
 _RUCKUS vRIoT is a virtual IoT controller that integrates with the RUCKUS SmartZone controller, handling connectivity, device, and security management functions. It is deployed as an OVA image on a hypervisor and acts as a central management point for IoT devices connected to Ruckus access points — Bluetooth, Zigbee, and similar protocols. It is commonly found in enterprise environments, hotels, healthcare, maritime and others._
 
