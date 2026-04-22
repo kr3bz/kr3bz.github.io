@@ -301,6 +301,8 @@ root
 vriot
 ```
 
+![Wireshark Capture](/assets/img/6/ruckus-vriot-rce-network-capture.png)
+
 Exploitation video:
 <video width="100%" controls>
   <source src="/assets/img/6/CVE-2025-69425.mp4" type="video/mp4">
