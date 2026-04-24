@@ -329,10 +329,10 @@ There is no workaround for this vulnerability. The following actions are strongl
 
 **References**
 
-- **Vendor Advisory** — [RUCKUS IOT Controller: Vulnerabilities in Management Interface
+- **Vendor Advisory** - [RUCKUS IOT Controller: Vulnerabilities in Management Interface
 Authentication and Access Control](https://support.ruckuswireless.com/security_bulletins/336)
-- **CVE-2025-69426** — [https://www.vulncheck.com/advisories/ruckus-vriot-iot-controller-hardcoded-ssh-credentials-rce](https://www.vulncheck.com/advisories/ruckus-vriot-iot-controller-hardcoded-ssh-credentials-rce)
-* **NVD** [https://nvd.nist.gov/vuln/detail/CVE-2025-69426](https://nvd.nist.gov/vuln/detail/CVE-2025-69426)
+- **CVE-2025-69426** - [https://www.vulncheck.com/advisories/ruckus-vriot-iot-controller-hardcoded-ssh-credentials-rce](https://www.vulncheck.com/advisories/ruckus-vriot-iot-controller-hardcoded-ssh-credentials-rce)
+* **NVD** - [https://nvd.nist.gov/vuln/detail/CVE-2025-69426](https://nvd.nist.gov/vuln/detail/CVE-2025-69426)
 
 # Outro
 

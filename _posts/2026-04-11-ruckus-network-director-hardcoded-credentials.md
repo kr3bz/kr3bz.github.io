@@ -250,9 +250,9 @@ Post-patch verification:
 After upgrading, audit the `users` table in the `ruckus` database for unauthorized admin accounts.
 
 **References**
-- **Vendor Advisory** — [CommScope: RUCKUS Network Director Critical Security Bypass Vulnerability](https://webresources.commscope.com/download/assets/RUCKUS+Network+Director%3A+Critical+Security+Bypass+Vulnerability+Leading+to+Remote+Code+Execution+and/3adeb3acb69211f08a46b6532db37357)
-- **CVE-2025-67304** — [https://nvd.nist.gov/vuln/detail/CVE-2025-67304](https://nvd.nist.gov/vuln/detail/CVE-2025-67304)
-- **CVE-2025-67305** — [https://nvd.nist.gov/vuln/detail/CVE-2025-67305](https://nvd.nist.gov/vuln/detail/CVE-2025-67305)
+- **Vendor Advisory** - [CommScope: RUCKUS Network Director Critical Security Bypass Vulnerability](https://webresources.commscope.com/download/assets/RUCKUS+Network+Director%3A+Critical+Security+Bypass+Vulnerability+Leading+to+Remote+Code+Execution+and/3adeb3acb69211f08a46b6532db37357)
+- **CVE-2025-67304** - [https://nvd.nist.gov/vuln/detail/CVE-2025-67304](https://nvd.nist.gov/vuln/detail/CVE-2025-67304)
+- **CVE-2025-67305** - [https://nvd.nist.gov/vuln/detail/CVE-2025-67305](https://nvd.nist.gov/vuln/detail/CVE-2025-67305)
 
 # Outro
 
