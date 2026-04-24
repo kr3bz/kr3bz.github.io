@@ -352,9 +352,9 @@ vriot
 
 ## References
 
-- **Vendor Advisory** — [RUCKUS IoT Controller: Vulnerabilities in Management Interface Authentication and Access Control](https://support.ruckuswireless.com/security_bulletins/336)
+- **Vendor Advisory** - [RUCKUS IoT Controller: Vulnerabilities in Management Interface Authentication and Access Control](https://support.ruckuswireless.com/security_bulletins/336)
 - **CVE-2025-69425** - [https://www.vulncheck.com/advisories/ruckus-vriot-iot-controller-hardcoded-tokens-rce](https://www.vulncheck.com/advisories/ruckus-vriot-iot-controller-hardcoded-tokens-rce)
-* **NVD** [https://nvd.nist.gov/vuln/detail/CVE-2025-69425](https://nvd.nist.gov/vuln/detail/CVE-2025-69425)
+* **NVD** - [https://nvd.nist.gov/vuln/detail/CVE-2025-69425](https://nvd.nist.gov/vuln/detail/CVE-2025-69425)
 
 # Outro
 
