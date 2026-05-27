@@ -28,6 +28,8 @@ A straight-forward command injection vulnerability. Additional information can b
 - [https://cert.pl/en/posts/2025/11/CVE-2025-8890/](https://cert.pl/en/posts/2025/11/CVE-2025-8890/)
 - [https://nvd.nist.gov/vuln/detail/CVE-2025-8890](https://nvd.nist.gov/vuln/detail/CVE-2025-8890)
 
+Worth noting: the firmware on my device was an older branch than the one Securitum analyzed, so CVE-2025-8890 still applied here. That's what gave me a foothold to start looking at the recovery backdoor in the first place.
+
 And if you are wondering - the binary was running as root. That is nice, but I wanted to obtain console access to the device. Neither SSH nor Telnet were network-accessible, so I poked around, looked at the `iptables` output and saw that there is a firewall rule that disallows SSH access. As I can execute commands as the root user, I've opted for `';iptables -D lan2self_mgmt -p tcp --dport 22 -j DROP'` to allow access to TCP port 22 from the LAN interface. 
 
 SSH was now accessible, so the next step was to obtain the root password hash via `';cat /etc/shadow'`.
