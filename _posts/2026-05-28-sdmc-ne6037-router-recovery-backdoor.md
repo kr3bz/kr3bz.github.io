@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Recovering the rooter: SDMC NE6037 CVE-2026-24444"
-date: 2026-05-28 00:12 +0200
+date: 2026-05-28 17:12 +0200
 description: "Exploiting SDMC NE6037 Router Recovery Backdoor to obtain root access"
 categories: [Vulnerability Research]
 tags: [SDMC, NE6037, vulnerability-research, CVE-2026-24444]
