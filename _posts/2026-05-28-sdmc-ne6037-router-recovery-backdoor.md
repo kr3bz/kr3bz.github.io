@@ -124,7 +124,9 @@ Or you can fix your own router by exploiting it and changing the root password (
 
 ## References
 
-- **CVE-2026-24444** - [https://www.vulncheck.com/advisories/sdmc-ne6037-hardcoded-password-via-mgmt-php-npcmd-php](https://www.vulncheck.com/advisories/sdmc-ne6037-hardcoded-password-via-mgmt-php-npcmd-php)
+**CVE-2026-24444**
+- [https://www.vulncheck.com/advisories/sdmc-ne6037-hardcoded-password-via-mgmt-php-npcmd-php](https://www.vulncheck.com/advisories/sdmc-ne6037-hardcoded-password-via-mgmt-php-npcmd-php)
+- [https://www.cve.org/CVERecord?id=CVE-2026-24444](https://www.cve.org/CVERecord?id=CVE-2026-24444)
 
 # Outro
 
