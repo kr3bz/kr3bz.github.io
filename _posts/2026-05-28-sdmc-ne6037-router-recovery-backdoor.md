@@ -9,7 +9,7 @@ tags: [SDMC, NE6037, vulnerability-research, CVE-2026-24444]
 
 # Intro
 
-During December 2025 I had to temporarily move to a different apartment due to renovations I had in my own. As usual, I spent most of the winter reading stuff, looking for potential targets to do research on and chose Windows Server Update Services (found a lame DoS, maybe I'll post about it). 
+During December 2025, I had to temporarily move to a different apartment due to renovations in my own. I spent most of the winter looking for potential targets to research and chose Windows Server Update Services (found a lame DoS, maybe I'll post about it) as it was affected by some RCE vulnerabilities in 2025 and is a juicy target.
 
 While I was preparing the lab environment, I noticed some Internet connectivity issues. I thought that it was the usual DHCP renewal every 24 hours enforced by the ISP, but then I realized that actually my wireless NIC was reconnecting to the router. OK, maybe some maintenance by the ISP? But the same dang thing started to happen more often, and I was getting irritated. So, how to fix this? Well, let's pwn the device!
 
@@ -19,18 +19,18 @@ Superior, efficient and rich in software features. Sounds good.
 
 # Initial exploitation via a previously-known vulnerability (CVE-2025-8890)
 
-Poking around the router's web interface and searching for known vulnerabilities I realized that the router does not have the latest firmware installed (<7.1.12.2.44) and that the currently present firmware should be vulnerable to a command injection  in the network diagnostics tool. I forgot to take screenshots, so I am going to link the ones from the original Securitum [blog post](https://www.securitum.com/cve-2025-8890.html). 
+Poking around the router's web interface and searching for known vulnerabilities I realized that the router does not have the latest firmware installed and that the currently present firmware should be vulnerable to a command injection in the network diagnostics tool. I forgot to take screenshots, so I am going to link the ones from the original Securitum [blog post](https://www.securitum.com/cve-2025-8890.html). 
 
 ![Securitum research on CVE-2025-8890](https://www.securitum.com/images/Zrzut-ekranu-2025-12-18-153628.png)
 
-A straight-forward command injection vulnerability. Additional information can be found at:
+A straight-forward command injection vulnerability in firmware versions < 7.1.12.2.44. Additional information can be found at:
 - [https://www.securitum.com/cve-2025-8890.html](https://www.securitum.com/cve-2025-8890.html)
 - [https://cert.pl/en/posts/2025/11/CVE-2025-8890/](https://cert.pl/en/posts/2025/11/CVE-2025-8890/)
 - [https://nvd.nist.gov/vuln/detail/CVE-2025-8890](https://nvd.nist.gov/vuln/detail/CVE-2025-8890)
 
-Worth noting: the firmware on my device was an older branch than the one Securitum analyzed, so CVE-2025-8890 still applied here. That's what gave me a foothold to start looking at the recovery backdoor in the first place.
+And if you are wondering - the binary was running as root and you can get a root shell with usual reverse-shell payloads, but I wanted to obtain console access to the device. 
 
-And if you are wondering - the binary was running as root. That is nice, but I wanted to obtain console access to the device. Neither SSH nor Telnet were network-accessible, so I poked around, looked at the `iptables` output and saw that there is a firewall rule that disallows SSH access. As I can execute commands as the root user, I've opted for `';iptables -D lan2self_mgmt -p tcp --dport 22 -j DROP'` to allow access to TCP port 22 from the LAN interface. 
+Neither SSH nor Telnet were network-accessible, so I poked around, looked at the `iptables` output and saw that there is a firewall rule that disallows SSH access. As I can execute commands as the root user, I've opted for `';iptables -D lan2self_mgmt -p tcp --dport 22 -j DROP'` to allow access to TCP port 22 from the LAN interface. 
 
 SSH was now accessible, so the next step was to obtain the root password hash via `';cat /etc/shadow'`.
 
@@ -68,7 +68,7 @@ If the password matches the hardcoded value `YzVlY2UxMDc4MmEzYjYzNDM3OTY5NzkyYWQ
 
 ![Handlerecovery function](/assets/img/7/sdmc-handlerecovery-function-mgmt-php-2.png)
 
-If `$code === "success"`, then modification of the router configuration is possible either via the `cgiScalarSetConfig` function or via the PHP's beloved `exec()` function which executes `iptables` and `ip6tables` (as can be seen on lines 778-781) which will insert a firewall rule that will allow access to SSH / Telnet from the LAN interface:
+If `$code === "success"`, modification of the router configuration is possible either via the `cgiScalarSetConfig` function or via the PHP's beloved `exec()` function which executes `iptables` and `ip6tables` (as can be seen on lines 778-781) which will insert a firewall rule that will allow access to SSH / Telnet from the LAN interface:
 
 ![Handlerecovery function](/assets/img/7/sdmc-handlerecovery-function-mgmt-php-3.png)
 
@@ -128,16 +128,20 @@ Or you can fix your own router by exploiting it and changing the root password (
 
 # Outro
 
-I would like to thank the guys from the Internet Service Provider security and device team for great collaboration. They tested the vulnerability internally, confirmed that the newer version (7.1.6.1.9_B9) still has the backdoor but the root password was changed. They also provided me with the updated firmware and rolled out a firmware update to all client routers. 
+The firmware on my device was an older branch than the one Securitum analyzed for CVE-2025-8890. That command injection was patched in 7.1.12.2.44, but my older build still had it, which is what gave me a foothold to start looking at the recovery backdoor in the first place.
 
-Also, they had success with contacting SDMC, who said that they will make some *major* changes like:
-- remove SSH/Telnet backdoor (you don't say?)
-- a unique root password per device
+The recovery backdoor (CVE-2026-24444) is a separate issue, and unfortunately I never managed to obtain a 7.1.12.x image myself to confirm whether it persists in the branch that fixed the command injection. That left a slightly bitter aftertaste, but I'm still glad the research helped push firmware upgrades out to the ISP's customer routers.
+
+I would like to thank the guys from the Internet Service Provider security and device team for great collaboration. They tested the vulnerability internally and confirmed that the backdoor was still present in a slightly newer build than the one currently deployed on the routers, just with a changed root password. They also rolled out an update to all client routers in a very short time.
+
+I reached out to SDMC myself and also reported the vulnerability to the ISP and VulnCheck. While SDMC never replied to VulnCheck or me, the guys from the ISP had success. SDMC said they would make some major changes:
+- remove the SSH/Telnet backdoor (you don't say?)
+- assign a unique root password per device
 - add an ERP certification feature (tbh, I don't know what that is. Exclude Recovery Password?)
 
-VulnCheck and myself did not get any response from SDMC. Props to VulnCheck for handling the communication and constantly pinging SDMC for some follow-up information. 
+By promising to remove the backdoor and assign per-device passwords, SDMC implicitly admitted both that it exists and that every device currently ships with the same hardcoded root credentials even on latest firmware versions.
 
-Per their [disclosure policy](https://www.vulncheck.com/vulnerability-disclosure-policy), the vendor has 120 days from the time of outreach to address the issue before public disclosure by the CVD parties. For this vulnerability, that 120-day deadline falls on May 28, 2026 (today), so hopefully you enjoyed this blog post. 
+Props to VulnCheck for handling the communication and constantly pinging SDMC for follow-up. Per their [disclosure policy](https://www.vulncheck.com/vulnerability-disclosure-policy), the vendor has 120 days from the time of outreach to address the issue before public disclosure by the CVD parties. For this vulnerability, that 120-day deadline falls on May 28, 2026 (today), so hopefully you enjoyed this blog post.
 
 Recover the planet!
 
