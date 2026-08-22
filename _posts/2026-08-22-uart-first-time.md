@@ -1258,6 +1258,8 @@ s.close()
 
 ![Code execution](/assets/img/9/code_exec.png)
 
+P.S. I'm sure that someone already found this vulnerability 12 years ago, but I honestly didn't look. I just wanted to repeat one of the processes I learned at the Flashback training, gather hands-on experience and have fun.
+
 And that is it. The exploit is merely for the lulz, obviously. 
 If you're where I was a couple of weekends ago - perfectly fine with a shell prompt, mildly terrified of a soldering iron - budget more patience for the multimeter phase than seems reasonable, don't assume a tool is broken just because it won't answer your question, check which USB port you're using before you start questioning your life choices, and don't be surprised if "let's just see if I can get a login prompt" turns into a lot more than that by the time you look up.
 
