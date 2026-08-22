@@ -35,6 +35,9 @@ So far I did everything _exactly_ the opposite from what I learned at the traini
 With ground, RX and TX wired up and `gf uart` open in a terminal, I powered the router on and watched a full boot log scroll past - Broadcom chipset, CFE bootloader, and a kernel that is twelve years old.
 
 ```bash
+➜  greatfet uart
+Entering monitor mode. To terminate, type CTRL+A, then CTRL+C.
+
 CFE version 1.0.38-112.37 for BCM963268 (32bit,SP,BE)
 Build Date: 07/03/2013 (yushu@howaBuild)
 Copyright (C) 2000-2011 Broadcom Corporation.
@@ -559,6 +562,12 @@ sect_size = 131072
 6d 39 36 33 78 78 5f 66 73 5f 6b 65 72 6e 65 6c
 ...
 *** command status = 0
+```
+
+```python
+>>> bytes.fromhex('6366652d76010026702500000000000000000006653d3139322e3136382e312e313a666666666666303020683d3139322e3136382e312e31303020673d20723d6620663d766d6c696e757820693d62636d39363378785f66735f6b65726e\
+656c').decode('ascii')
+'cfe-v\x01\x00&p%\x00\x00\x00\x00\x00\x00\x00\x00\x00\x06e=192.168.1.1:ffffff00 h=192.168.1.100 g= r=f f=vmlinux i=bcm963xx_fs_kernel'
 ```
 
 `sect_size = 131072` matched the 128 KB NAND block size reported earlier in the boot log - a nice sanity check that I was reading the same flash the board itself was booting from.
@@ -1265,7 +1274,7 @@ P.S. I'm sure that someone already found this vulnerability 12 years ago, but I 
 And that is it. The exploit is merely for the lulz, obviously. 
 If you're where I was a couple of weekends ago - perfectly fine with a shell prompt, mildly terrified of a soldering iron - budget more patience for the multimeter phase than seems reasonable, don't assume a tool is broken just because it won't answer your question, check which USB port you're using before you start questioning your life choices, and don't be surprised if "let's just see if I can get a login prompt" turns into a lot more than that by the time you look up.
 
-After this endeavour my friend gave me an Cisco Meraki device, which I have fun with at the moment. I got UART access to the device and managed to interrupt the boot process to land in the bootloader. But, to really fiddle with the device I will need to solder the pins on the JTAG. Hopefully, if I don't burn the house, you will read it in an upcoming post.
+After this endeavor, my friend "The Lamp" gave me a Cisco Meraki device, which I have fun with at the moment. I got UART access to the device and managed to interrupt the boot process to land in the bootloader. But, to really fiddle with the device I will need to solder the pins on the JTAG. Hopefully, if I don't burn the house, you will read it in an upcoming post.
 
 UART the planet.
 
