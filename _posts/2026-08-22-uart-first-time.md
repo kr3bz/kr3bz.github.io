@@ -1,5 +1,5 @@
 ---
-title: "UART, Actually: My First Time Popping a Router Open with a Screwdriver Instead of a Browser"
+title: "UART, Actually: First Time Popping a Router Open with a Screwdriver Instead of a Browser"
 date: 2026-08-22
 categories: [Personal]
 tags: [personal, hardware, uart, embedded]
@@ -29,6 +29,8 @@ With the router side already sorted - ground, TX, and RX identified on the board
 ![UART pins on the Zyxel](/assets/img/9/greatfet_uart_setup.png){: width="500" height="500" }
 
 ![Final setup](/assets/img/9/zyxel_greatfet_pc_conn.png){: width="500" height="500" }
+
+So far I did everything _exactly_ the opposite from what I learned at the training: didn't find and read the data sheets, did not triple-check the cable connections, didn't learn the tools. Well, you live and learn the hard way I guess.
 
 With ground, RX and TX wired up and `gf uart` open in a terminal, I powered the router on and watched a full boot log scroll past - Broadcom chipset, CFE bootloader, and a kernel that is twelve years old.
 
