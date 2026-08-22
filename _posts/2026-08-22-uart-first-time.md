@@ -1126,7 +1126,7 @@ LAB_2ab89b34:
       }
 ```
 
-So, at line 15, a local stack array is populated with `local_c[0] = 0x7368;`, which corresponds to the string `"sh"` (this is MSB / big-endian architecture / binary), and at line 38 it compares it with our input. If the input matches - you are asked for a password to access this undocumented shell.
+So, at line 15, a local stack array is populated with `local_c[0] = 0x7368;`, which corresponds to the string `"sh"` (this is MSB / big-endian architecture / binary), and at line 38 it compares it with our input. If the input matches - you are asked for a password to access this undocumented shell, which compares your input at line 49 `iVar3 = strcmp(acStack_2c,local_1c);` with the hardcoded string admin set at line 37 `memcpy(acStack_2c,"admin",6);`.
 
 Static analysis of the disassembly backed up the crash dump: the copy into that password buffer is a raw `strcpy()` with no bounds checking, the buffer itself is 16 bytes, and the saved return address sits exactly 24 bytes in. The source is the `_src` at line 42 `__src = getpass("shell Password: ");`, and the sink is the `strcpy(local_1c,__src);` at line 44.
 
