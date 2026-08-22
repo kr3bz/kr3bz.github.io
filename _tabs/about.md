@@ -17,7 +17,7 @@ This somehow did not fully satisfy me, so I started doing vulnerability research
 
 And here we are. A few people encouraged me to start writing blog posts, and I would like to thank you for this. I'll give my best to keep it alive, blogging about the things I do, the trials and errors, but also the successes. All of that makes me who I am.
 
-Other stuff about me: my brain is IQLR (Intelligence Quotient Layout Randomized), so one day I wake up having problems with the basics, and other days I do some quite cool stuff. This may be because I like to block punches with my head during Muay Thai training. As my brain also likes to wonder around, I need some structured type of learning. Therefore, I have some badges like: RET2 Systems FOSE, GIAC GXPN and GPEN, OffSec OSCE and OSCP, CyberWarfare Labs CPTA, Altered Security CRTE and PACES. Anyways, hope you find some stuff here useful.
+Other stuff about me: my brain is IQLR (Intelligence Quotient Layout Randomized), so one day I wake up having problems with the basics, and other days I do some quite cool stuff. This may be because I like to block punches with my head during Muay Thai training. As my brain also likes to wonder around, I need some structured type of learning. Therefore, I have some badges like: RET2 Systems FOSE, Flashback's Hunting Zero-days in Embedded Devices, GIAC SANS GXPN and GPEN, OffSec OSCE and OSCP, CyberWarfare Labs CPTA, Altered Security CRTE and PACES. Anyways, hope you find some stuff here useful.
 
 Hack the planet.
 
