@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "What DFFuck did you copy? ReadyMedia / MiniDLNA DFF parser unbounded VLA to RCE"
-date: 2026-11-01 00:00 +0200
+date: 2026-11-01 00:00 +0100
 description: "Unbounded VLA in ReadyMedia / MiniDLNA's DFF file parser leads to RCE on an ASUS RT-AX86U"
 categories: [Vulnerability Research]
 tags: [MiniDLNA, ReadyMedia, vulnerability-research, CVE-2026-29508]
