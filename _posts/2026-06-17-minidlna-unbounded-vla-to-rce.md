@@ -1075,7 +1075,7 @@ On other embedded/router-class builds without these mitigations, this memory cor
 
 # References
 
-- [VulnCheck](https://www.vulncheck.com/advisories/minidlna-unbounded-vla-to-rce){:target="_blank"}
+- [VulnCheck](https://www.vulncheck.com/advisories/readymedia-stack-buffer-overflow-via-dff-parser){:target="_blank"}
 - [ASUS Security Advisory](https://www.asus.com/security-advisory#bulletins){:target="_blank"}
 - [ASUS Firmware Update 3.0.0.4.388_24437](https://www.asus.com/networking-iot-servers/wifi-routers/asus-gaming-routers/rt-ax86u/helpdesk_bios?model2Name=RT-AX86-Series-RT-AX86U-RT-AX86S)
 - [ASUS Hall of Fame](https://www.asus.com/security-advisory#hof){:target="_blank"}
