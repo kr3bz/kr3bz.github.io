@@ -1,9 +1,15 @@
 ---
 title: "UART, Actually: First Time Popping a Router Open with a Screwdriver Instead of a Browser"
 date: 2026-08-22
+description: "First-time hardware hacking: finding UART on a ZyXEL VMG1312-B30B with a multimeter and GreatFET One, dumping NAND flash through the CFE bootloader, and turning a shell password overflow into code execution."
 categories: [Personal]
-tags: [personal, hardware, uart, embedded]
+tags: [personal, hardware, uart, embedded, ZyXEL, GreatFET, memory-corruption, mips]
+image:
+  path: /assets/img/9/zyxel_greatfet_pc_conn.webp
+  alt: "ZyXEL VMG1312-B30B connected to a GreatFET One over UART"
 ---
+
+## Intro
 
 I've spent close to a decade breaking into things through a network cable. Infrastructures, Active Directory, web apps, the occasional vulnerabilities I discovered just to get a shell nobody asked for. What I had never actually done, not once, was connect a wire to an embedded device and talk to it directly. I did test routers in my engagements, but I would always be worried that I will damage the hardware, so I left soldiering and connecting the UART cables to more experienced colleagues. Every hardware hacker I follow on Twitter made it look like some kind of ancient ritual involving a soldering iron, a prayer, and a multimeter that costs more than my first car.
 
@@ -11,26 +17,34 @@ What finally pushed me over the edge was the Flashback Team's "Hunting Zero-days
 
 So I did what any reasonable adult does when faced with something that intimidates them, freshly armed with a course's worth of confidence: I took my GreatFET One, pulled a ZyXEL VMG1312-B30B out of a drawer, and decided this router was going to lose its virginity to me over a weekend.
 
-![Zyxel VMG1312-B30B](/assets/img/9/zyxel_vmg1312_b30b.png){: width="500" height="500" }
-![Zyxel board](/assets/img/9/zyxel_board.png){: width="500" height="600" }
+![Zyxel VMG1312-B30B](/assets/img/9/zyxel_vmg1312_b30b.webp){: width="500" height="500" }
+![Zyxel board](/assets/img/9/zyxel_board.webp){: width="500" height="600" }
+
+## The Target: ZyXEL VMG1312-B30B
 
 The router is from 2013, it's older than some of my nephews, and EOL enough that I don't feel bad poking at it properly - so alongside the UART fumbling, there's a real buffer overflow in here too, further down, found the same way you'd expect: by typing too many A's into a field that should have said no to that. This is still, first and foremost, the story of a guy who is very comfortable typing `nmap` and considerably less comfortable identifying which of five unlabeled pads on a PCB is going to send 3.3V into his laptop if he guesses wrong - the vulnerability just happened to be standing there when I went looking.
 
+## Identifying the UART Pins with a Multimeter
+
 First problem: which pin is which. There are five pins in a row near the CPU, already soldered on, with a gap after the first one that turned out to be the universal "pin 1 goes here, idiot" marker. I bought a UNI-T UT139A multimeter, a perfectly respectable little device, and I was fully convinced I could just measure my way to an answer like a grown-up. Continuity mode found me ground with zero drama. Everything after that turned into a comedy of errors that took me embarrassingly long to understand.
 
-![UART pins on the Zyxel](/assets/img/9/zyxel_uart_layout.png){: width="400" height="400" }
+![UART pins on the Zyxel](/assets/img/9/zyxel_uart_layout.webp){: width="400" height="400" }
 
 I've found TX easily. But, RX and VCC on an idle UART line sat at basically the same voltage. Then I googled around to see how to find a solution for this. One of the suggestions was to reboot / power the device on and off and immediately measure the voltage on the pins, but I just could not differentiate them. Then I tried asking for additional help, and Gemini stood in my defense by saying that the RX wiggles up and down a few million times a second while it's actually receiving data (it cannot receive anything as it is not connected to any network), and VCC just sits there being boring and constant. Also, Gemini blamed my multimeter as it updates its display only two or three times a second. Basically - it said it was the multimeter's fault, but it was all mine. I burned an embarrassing chunk of an afternoon on this (I'm impatient, want to get a shell, so 15 minutes looks like a week) and just went looking for someone who'd already mapped this exact family of board. Found a pin out for a close cousin model, matched it against the things I actually knew for certain (my ground pin and TX), and decided to trust it enough to try, with the plan of confirming TX by watching for actual boot text and any other errors I will fix with a fire extinguisher. 
 
 Second problem: I plugged my laptop into the wrong USB port on the GreatFET. There are two. I used the one that isn't for that. The board just sat there, dark and silent, judging me quietly while I googled "greatfet not detected" like a man who has never once read a product page before buying something. Turns out one port is for talking to your computer and the other one is for the GreatFET to pretend to *be* a USB device toward something else entirely - which is a genuinely cool feature, and one I discovered exclusively by using it wrong first. Moved to the correct port, heartbeat LED came alive, and I felt a completely disproportionate sense of triumph for a man who had, so far, accomplished nothing except plugging in a cable correctly on the twentieth try.
 
+## Wiring the GreatFET One
+
 With the router side already sorted - ground, TX, and RX identified on the board itself - all that was actually left was wiring the other end. The GreatFET's own docs spell out exactly which of its pins carry UART TX and RX, so this part was refreshingly easy (Yep, I made a mistake here also. I connected to the MOSI/MISO pins 39/40, instead 33/34 for UART RX/TX): ground to ground, router TX to GreatFET RX, router RX to GreatFET TX, the usual crossover you'd do with any serial adapter.
 
-![UART pins on the Zyxel](/assets/img/9/greatfet_uart_setup.png){: width="500" height="500" }
+![UART pins on the Zyxel](/assets/img/9/greatfet_uart_setup.webp){: width="500" height="500" }
 
-![Final setup](/assets/img/9/zyxel_greatfet_pc_conn.png){: width="500" height="500" }
+![Final setup](/assets/img/9/zyxel_greatfet_pc_conn.webp){: width="500" height="500" }
 
 So far I did everything _exactly_ the opposite from what I learned at the training: didn't find and read the data sheets, did not triple-check the cable connections, didn't learn the tools. Well, you live and learn the hard way I guess.
+
+## First Boot: Reading the Console Output
 
 With ground, RX and TX wired up and `gf uart` open in a terminal, I powered the router on and watched a full boot log scroll past - Broadcom chipset, CFE bootloader, and a kernel that is twelve years old.
 
@@ -523,6 +537,8 @@ Login:
 
 A twelve-year-old kernel booting off NAND that was flashed before I even started my current job. The kernel booted, userspace came up, and I got dropped straight into a login prompt. Great, I thought, I'm basically done. I was not basically done. I had no idea what the username or password was as it was changed.
 
+## Breaking into the CFE Bootloader
+
 So I power-cycled the thing and this time mashed my keyboard during boot to catch it before Linux even loaded. That dropped me into CFE bootloader, which flat out refused to give me `help`, because apparently that's not a real command here, and offered me a locked-down list of about a dozen `AT`-prefixed commands instead.
 
 ```bash
@@ -571,6 +587,8 @@ sect_size = 131072
 ```
 
 `sect_size = 131072` matched the 128 KB NAND block size reported earlier in the boot log - a nice sanity check that I was reading the same flash the board itself was booting from.
+
+## Dumping the NAND Flash over UART
 
 Manually running that command several hundred times and pasting the output somewhere was never going to happen, so I told my computing friend who I subscribed to - to write a Python script that talks to the GreatFET's own API directly instead of going through the interactive terminal, feeds it `ATRM` calls one block at a time, parses the hex back into real bytes, and writes the whole thing to a binary file while I go make coffee (actually, it took the several hours over the night, cause I was dumping the firmware via UART at Baud rate of 115 200).
 
@@ -813,6 +831,8 @@ drwxrwxr-x  3 ubuntu ubuntu    4096 Aug 12 19:33 var
 drwxrwxr-x 10 ubuntu ubuntu   12288 Aug 12 19:33 webs
 ```
 
+## Escaping the consoled Restricted CLI
+
 I then grabbed the password hash, attempted to crack it - and nothing. I hoped it would be easier. But then I remembered - this device was actually used and probably the admin password was changed. So I went and did a factory reset (usual power/reset button combination). That worked and I had working credentials again. But, `admin`/`admin` didn't drop me into a normal shell - it dropped me into `consoled`, a locked-down CLI that rejects anything it doesn't recognize.
 
 ```bash
@@ -937,6 +957,8 @@ support
 root::0:root,admin,support,user
 ```
 
+## Exploring the Root Shell
+
 With a real root shell in hand, poking around got a lot more interesting a lot faster than the login prompt saga did. `consoled` itself turned out to be a thin wrapper around a set of shared libraries - `libcms_dal.so`, `libcms_cli.so`, `libcms_msg.so`, `libcms_util.so` - visible right there in `/proc/<pid>/maps`. 
 
 ```bash
@@ -1024,6 +1046,8 @@ With a real root shell in hand, poking around got a lot more interesting a lot f
 ~ #
 ```
 
+## Overflowing the shell Password Prompt
+
 Poking at the "shell Password" prompt with a few hundred `A`s instead of a real password, mostly out of the "what happens if I don't behave", got me this instead of a polite rejection:
 
 ```bash
@@ -1060,13 +1084,15 @@ consoled/2993: potentially unexpected fatal signal 11.
 
 `epc` and `ra` both sitting at `0x41414141` - the ASCII value of four capital A's. Control over where execution goes next, from a prompt that's supposed to just be checking a string. Repeating the test with a cyclic, non-repeating pattern instead of plain A's, allowed me to find the exact offset to the overflow at 24 bytes before that saved return address gets overwritten.
 
+## Static Analysis in Ghidra
+
 So I decided to do some static analysis. Let's look at Ghidra's disassembly.
 
-![shell Password](/assets/img/9/shell_password_string.png)
+![shell Password](/assets/img/9/shell_password_string.webp)
 
 The "shell Password" string is cross-referenced inside of the `cli_processHiddenCmd()` function.
 
-![Xrefs to cli_processHiddenCmd](/assets/img/9/shell_password_xref_to_hidden_cmd.png)
+![Xrefs to cli_processHiddenCmd](/assets/img/9/shell_password_xref_to_hidden_cmd.webp)
 
 Here is the Ghidra-decompiled function:
 
@@ -1139,11 +1165,13 @@ So, at line 15, a local stack array is populated with `local_c[0] = 0x7368;`, wh
 
 Static analysis of the disassembly backed up the crash dump: the copy into that password buffer is a raw `strcpy()` with no bounds checking, the buffer itself is 16 bytes, and the saved return address sits exactly 24 bytes in. The source is the `_src` at line 42 `__src = getpass("shell Password: ");`, and the sink is the `strcpy(local_1c,__src);` at line 44.
 
+## From Crash to Code Execution
+
 Confirming a crash by hand is one thing; actually stepping through it properly needed a real debugger sitting on the device. Under normal circumstances I'd have just plugged an Ethernet cable in and used TFTP like a person with functioning life priorities - except this whole thing was happening on vacation, I hadn't packed a UTP cable because who packs a UTP cable for vacation (maybe the same guy that brings a fucking router with him on a vacation should pack it?), and the router's WiFi had stopped coming up entirely after the factory reset from earlier in this saga. 
 
 I actually went to upload the `gdb-server` via UART, but that was just horrible and I was really impatient. That led to even more time used to find something to execute, and finding the good address to put in `epc`, but eventually I found something just to get some kind of code-execution.
 
-![System() calls a Bash script](/assets/img/9/dumpsysinfo.png)
+![System() calls a Bash script](/assets/img/9/dumpsysinfo.webp)
 
 Snipped `/opt/scripts/dumpsysinfo.sh` script contents:
 
@@ -1267,7 +1295,9 @@ while True:
 s.close()
 ```
 
-![Code execution](/assets/img/9/code_exec.png)
+![Code execution](/assets/img/9/code_exec.webp)
+
+## Outro
 
 P.S. I'm sure that someone already found this vulnerability 12 years ago, but I honestly didn't look. I just wanted to repeat one of the processes I learned at the Flashback training, gather hands-on experience and have fun.
 

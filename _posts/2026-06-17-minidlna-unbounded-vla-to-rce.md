@@ -4,16 +4,24 @@ title: "What DFFuck did you copy? ReadyMedia / MiniDLNA DFF parser unbounded VLA
 date: 2026-11-01 00:00 +0100
 description: "Unbounded VLA in ReadyMedia / MiniDLNA's DFF file parser leads to RCE on an ASUS RT-AX86U"
 categories: [Vulnerability Research]
-tags: [MiniDLNA, ReadyMedia, vulnerability-research, CVE-2026-29508]
+tags: [MiniDLNA, ReadyMedia, ASUS, vulnerability-research, memory-corruption, exploit-development, arm, rce, CVE-2026-29508]
+image:
+  path: /assets/img/8/minidlna-dff-exploit-final.webp
+  alt: "MiniDLNA DFF parser exploit achieving RCE on ASUS RT-AX86U"
 ---
 
-# Intro
+> **TL;DR** - **CVE-2026-29508**: an unbounded variable-length array (VLA) in the DFF audio file parser (`tagutils-dff.c`) of ReadyMedia / MiniDLNA 1.3.0-1.3.3. A malicious `.dff` file written to a media directory (e.g. via an SMB share or ASUS AiCloud) overflows the stack when MiniDLNA scans it. I exploited it for **remote code execution on an ASUS RT-AX86U** (ARM, no PIE, no stack canaries). On hardened distro builds it is a reliable crash (DoS).
+>
+> **Fixed in:** ASUS RT-AX86U firmware 3.0.0.4.388_24437 (see [References](#references)).
+{: .prompt-info }
+
+## Intro
 
 I always wanted to find a memory corruption vulnerability when I started doing vulnerability research, but somehow `grep password` was sufficient to achieve RCE. This time I decided to poke at my own router, the [ASUS RT-AX86U](https://www.asus.com/networking-iot-servers/wifi-routers/asus-gaming-routers/rt-ax86u/){:target="_blank"}. The router is running on ARM, which I haven't played with so far, so this looked like a good learning experience. 
 
 What I've found are multiple vulnerabilities in [ReadyMedia / MiniDLNA](https://sourceforge.net/projects/minidlna/){:target="_blank"} which can be exploited to crash the service, leak sensitive data, or achieve remote command execution. The one I dug into and exploited on my router hits the DFF file parser.
 
-# About ReadyMedia / MiniDLNA
+## About ReadyMedia / MiniDLNA
 
 [ReadyMedia](https://sourceforge.net/projects/minidlna/){:target="_blank"} (formerly known as MiniDLNA) is a simple media server. It is a lightweight, free piece of software that turns your device into a home media server, streaming your movies, music and photos to a Smart TV, console or phone.
 
@@ -21,7 +29,7 @@ It is available in [repositories](https://pkgs.org/download/minidlna){:target="_
 
 It is being replaced by better alternatives, but it is still widely present. A quick Shodan search shows its external exposure, but it is far more often exposed only internally.
 
-![MiniDLNA Shodan Exposure](/assets/img/8/minidlna-exposure-shodan.png)
+![MiniDLNA Shodan Exposure](/assets/img/8/minidlna-exposure-shodan.webp)
 
 A plain `minidlna` Shodan search returns 48,476 results but that number can't be read as 48,476 vulnerable instances. A quick look at the top hits shows most are running versions well below 1.3.0 (`1.1.4`, `1.0.24`, even `1.0`), which predate the DFF parser entirely and are therefore unaffected by this specific bug. Since the DFF parser only exists in versions 1.3.0 - 1.3.3, the exposure is a narrower subset of that total and drops down to approximately 7,400 instances.
 Also, as you will see, there are prerequisites for exploiting this vulnerability and I only exploited it on the ASUS router.
@@ -51,7 +59,7 @@ media_dir=/mnt/Toshiba/Downloads
 As you can see in the config, it uses `inotify`. Rather than wasting CPU cycles continuously scanning the disk for modifications, MiniDLNA hooks into `inotify`, a native Linux kernel subsystem that watches the filesystem in real time. The moment you drop a new movie or song into a shared folder, `inotify` fires an event, waking MiniDLNA to parse only that one new file and inject its metadata into the database.
 
 To visualize how your device discovers the ReadyMedia / MiniDLNA service on the network, here is a Wireshark network traffic capture:
-![MiniDLNA Network Traffic](/assets/img/8/minidlna-on-the-network.png)
+![MiniDLNA Network Traffic](/assets/img/8/minidlna-on-the-network.webp)
 
 - Your device uses the Simple Service Discovery Protocol ([SSDP](https://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol){:target="_blank"}) protocol to discover MiniDLNA on the network via multicast (in this example, I used VLC Media Player to browse the local network).
 - It sends an M-SEARCH discovery packet to the SSDP multicast address (`239.255.255.250:1900` for IPv4, `[FF0x::C]:1900` for IPv6) (bottom-left).
@@ -65,7 +73,7 @@ I already had an SMB share set up and a USB HDD mounted on the router, so I deci
 ./minidlna: ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux.so.3, for GNU/Linux 4.1.0, stripped
 ```
 
-# Vulnerability Discovery
+## Vulnerability Discovery
 
 I used [Semgrep](https://semgrep.dev){:target="_blank"} to scan the ReadyMedia / MiniDLNA source which is available [here](https://sourceforge.net/projects/minidlna/files/minidlna/1.3.3/){:target="_blank"}. I will omit all other vulnerabilities that it found, and will leave only relevant information for this blog post.
 
@@ -128,7 +136,7 @@ Scanning 132 files (only git-tracked) with:
 
 Let's look at the `tagutils/tagutils-dff.c` at line 130 to see what is going on:
 
-![Tagutils DFF Property Chunk Size](/assets/img/8/tagutils-dff-source-propchunk.png)
+![Tagutils DFF Property Chunk Size](/assets/img/8/tagutils-dff-source-propchunk.webp)
 
 `propckDataSize` appears only in `tagutils/tagutils-dff.c`:
 
@@ -352,7 +360,7 @@ user@ubuntu:~ hexdump -C dff-input/sample.dff
 ```
 
 Then I changed the PROP chunk size to good old `0x41414141` (1094795585 in decimal, ~1GB):
-![DFF POC 1](/assets/img/8/minidlna-dff-poc-1.png)
+![DFF POC 1](/assets/img/8/minidlna-dff-poc-1.webp)
 
 Copied it over to my SMB file share, and looked at the `dmesg` output on my router:
 
@@ -385,7 +393,7 @@ root@dafuq:/tmp/home/root# kill -l | grep 11
 
 SIGSEGV!
 
-# Vulnerability analysis
+## Vulnerability analysis
 
 So, the prerequisites to crash the service are:
 - SMB service needs to be network-reachable (LAN attack vector) / AiCloud enabled (WAN attack vector)
@@ -442,7 +450,7 @@ That's the difference between my two test values. `0x41414141` is a big number, 
 
 The other thing is that `fread()` call (at line 132) sounds like it only "reads," but reading and writing are two sides of the same call. `fread(dest, size, count, file)` reads bytes from the file, and writes them into `dest` buffer in memory.
 
-![DFF POC2](/assets/img/8/minidlna-dff-poc-2.png)
+![DFF POC2](/assets/img/8/minidlna-dff-poc-2.webp)
 
 After copying the file to the network share:
 ```bash
@@ -541,7 +549,7 @@ fpscr          0x0                 0
 
 This is the PoC file which gave control over the `$pc` and other registers:
 
-![DFF POC 3](/assets/img/8/minidlna-dff-poc-3.png)
+![DFF POC 3](/assets/img/8/minidlna-dff-poc-3.webp)
 
 This is the offset from the PROP Size Chunk:
 
@@ -772,7 +780,7 @@ Reading it bottom to top: `inotify_thread` picks up the file I dropped into the 
 
 Two things in frame `#0` are worth pointing out. `size=1094795585` is just `0x41414141` in decimal: my PROP chunk size flowing straight into the allocation. And `buf=0x2d18f3f0` is `propckData` itself - a low, out-of-place address, because the oversized VLA has already moved `sp` far down before a single byte is written. So the crash lands *inside* `fread` as it tries to write into that displaced buffer.
 
-# Exploit development
+## Exploit development
 
 I have to deal with ASLR and NX, but on my side is the big one: no PIE. Add no stack canaries on top, and the binary's own code stays at fixed, predictable addresses.
 
@@ -880,7 +888,7 @@ Look at this bad boy:
 
 This little snippet loads `$r0` with a pointer 8 bytes ahead of the stack pointer and then falls straight into `system@plt`. Let's modify the PoC DFF file.
 
-![DFF POC 4](/assets/img/8/minidlna-dff-poc-4.png)
+![DFF POC 4](/assets/img/8/minidlna-dff-poc-4.webp)
 
 ```bash
 root@dafuq:/tmp/mnt/Toshiba/Downloads/Tools/gdb# minidlna && ./gdb -q --pid $(pidof minidlna)
@@ -947,7 +955,7 @@ As the prerequisite is to have write access via an SMB share / AiCloud - I can a
 
 By default, the ASUS router mounts external devices to `/tmp/mnt`, so I opted for this payload:
 
-![Final Exploit](/assets/img/8/minidlna-dff-exploit-final.png)
+![Final Exploit](/assets/img/8/minidlna-dff-exploit-final.webp)
 
 It will `find` the copied `netcat` binary in `/tmp/mnt`, run it with the arguments I baked into the DFF file, and then restart minidlna, as it SIGSEGVs right after the payload fires, and I didn't bother making it stable post-exploitation.
 
@@ -970,7 +978,7 @@ root@dafuq:/tmp/home/root# nvram get firmver
 9.0.0.4
 ```
 
-# Cross-Platform Confirmation
+## Cross-Platform Confirmation
 
 Since ReadyMedia / MiniDLNA ships identically across a dozen platforms, I spun up the same MiniDLNA 1.3.3 codebase in Docker across six distributions to confirm the DFF parser crash. 
 
@@ -984,7 +992,7 @@ Same PoC file everywhere:
 
 A minimal `FRM8`/`DSD `/`FVER` header followed by a `PROP` chunk with `ckDataSize = 0x0000000200000000` (~8 GB).
 
-#### Ubuntu 24.04 (minidlna 1.3.3, apt)
+### Ubuntu 24.04 (minidlna 1.3.3, apt)
 
 ```bash
 [Sat Jun 13 12:42:32 2026] minidlnad[3514]: segfault at 7ffeffa96568 ip 00005622f9d5313a sp 00007ffeffa95570 error 6 in minidlnad[2e13a,5622f9d2e000+2e000] likely on CPU 1 (core 1, socket 0)
@@ -1017,7 +1025,7 @@ rip            0x55cd1fe70348      0x55cd1fe70348 <_get_dfffileinfo+1379>
 
 Same call chain as the ARM backtrace above: `inotify_thread` -> `monitor_insert_file` -> `insert_file` -> `GetAudioMetadata` -> `readtags` -> `_get_dfffileinfo`.
 
-#### Debian 12 (minidlna 1.3.3, apt)
+### Debian 12 (minidlna 1.3.3, apt)
 
 ```bash
 --- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7ffb0c871268} ---
@@ -1025,7 +1033,7 @@ Same call chain as the ARM backtrace above: `inotify_thread` -> `monitor_insert_
 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_KILLED, si_pid=2153, si_uid=0, si_status=SIGSEGV, si_utime=0, si_stime=0} ---
 ```
 
-#### Fedora 44 (minidlna 1.3.3, dnf)
+### Fedora 44 (minidlna 1.3.3, dnf)
 
 ```bash
 --- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7ffccecf0f28} ---
@@ -1033,7 +1041,7 @@ Same call chain as the ARM backtrace above: `inotify_thread` -> `monitor_insert_
 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_KILLED, si_pid=1432, si_uid=0, si_status=SIGSEGV, si_utime=0, si_stime=0} ---
 ```
 
-#### Arch Linux (minidlna 1.3.3-7, pacman)
+### Arch Linux (minidlna 1.3.3-7, pacman)
 
 ```bash
 --- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7ffc1965a688} ---
@@ -1041,7 +1049,7 @@ Same call chain as the ARM backtrace above: `inotify_thread` -> `monitor_insert_
 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_KILLED, si_pid=1183, si_uid=0, si_status=SIGSEGV, si_utime=0, si_stime=0} ---
 ```
 
-#### Alpine Linux (minidlna 1.3.3-r3, apk)
+### Alpine Linux (minidlna 1.3.3-r3, apk)
 
 ```bash
 open("/media/poc.dff", O_RDONLY|O_LARGEFILE) = 4
@@ -1051,7 +1059,7 @@ readv(4, [{iov_base="FRM8\0\0\0\0\0\0\20\0DSD FVER\0\0\0\0\0\0\0\4\1\5\0", iov_l
 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_KILLED, si_pid=29, si_uid=0, si_status=SIGSEGV, si_utime=0, si_stime=0} ---
 ```
 
-#### Raspbian 11 (compiled from the source with debug symbols)
+### Raspbian 11 (compiled from the source with debug symbols)
 
 ```bash
 pwndbg> bt
@@ -1073,7 +1081,7 @@ I tried exploiting the vulnerability on Ubuntu, but I could not corrupt anything
 
 On other embedded/router-class builds without these mitigations, this memory corruption can lead to code execution. On anything built with a modern, default-hardened toolchain, it degrades to a denial-of-service condition. But that is just my experience.
 
-# References
+## References
 
 - [VulnCheck](https://www.vulncheck.com/advisories/readymedia-stack-buffer-overflow-via-dff-parser){:target="_blank"}
 - [ASUS Security Advisory](https://www.asus.com/security-advisory#bulletins){:target="_blank"}
@@ -1081,7 +1089,7 @@ On other embedded/router-class builds without these mitigations, this memory cor
 - [ASUS Hall of Fame](https://www.asus.com/security-advisory#hof){:target="_blank"}
 - [NIST](https://nvd.nist.gov/vuln/detail/cve-2026-29508){:target="_blank"}
 
-# Outro
+## Outro
 
 I reported the vulnerability through [VulnCheck](https://vulncheck.com){:target="_blank"} in March, who handled the coordination. ASUS was responsive, and over the following months they sent me several firmware builds to test, and I kept throwing my PoCs at each one until the vulnerability was properly fixed by adding a bounds check for the Property chunk size.
 

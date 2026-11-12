@@ -4,10 +4,18 @@ title: "$u990R7ing the riot: RUCKUS vRIoT CVE-2025-69426"
 date: 2026-04-12 13:52 +0200
 description: "Obtaining unauthenticated remote root access on RUCKUS IoT Controller via hardcoded SSH credentials and Docker socket abuse"
 categories: [Vulnerability Research]
-tags: [Ruckus, CommScope, vulnerability-research, CVE-2025-69426]
+tags: [RUCKUS, CommScope, vulnerability-research, hardcoded-credentials, docker, rce, CVE-2025-69426]
+image:
+  path: /assets/img/5/ruckus-vriot-sos_entry-binary-ninja.webp
+  alt: "RUCKUS vRIoT sos_entry module reversed in Binary Ninja"
 ---
 
-# Intro
+> **TL;DR** - **CVE-2025-69426** (CVSS 10.0): the RUCKUS IoT Controller (vRIoT) ships hardcoded SSH credentials for its `support` account. The restricted shell is bypassed with SSH port forwarding to the Docker API (TCP 2375), and a privileged container mounting the host filesystem gives **unauthenticated remote root**.
+>
+> **Fixed in:** RUCKUS IoT 3.0.0.0 (released December 23, 2025). **Part 2:** [CVE-2025-69425, commander.py RCE](/posts/ruckus-vriot-commander-service-rce/)
+{: .prompt-info }
+
+## Intro
 
 If you have read my [previous](/posts/ruckus-network-director-hardcoded-credentials/) blog post, you might remember I have a fetish for controllers. Achieving access to a controller significantly increases the impact of a vulnerability as compromising the controller means compromising every device it manages. That kind of blast radius tends to help when you are chasing a perfect CVSS 10.0. Having success with the Network Director, I decided to look at other controllers RUCKUS provides and quickly discovered the IoT Controller (vRIoT).
 
@@ -15,7 +23,7 @@ _RUCKUS vRIoT is a virtual IoT controller that integrates with the RUCKUS SmartZ
 
 "Practice makes perfect, but nobody is perfect - so why practice?". Nevertheless, let's try and get a perfect 10.0.
 
-# Hardcoded SSH Credentials RCE (CVE-2025-69426)
+## Hardcoded SSH Credentials RCE (CVE-2025-69426)
 
 As with the Network Director, Ruckus allows you to [download](https://support.ruckuswireless.com/software/4555-ruckus-iot-2-4-0-0-ga-vriot-server-software-release-ova) the IoT Controller as an Open Virtualization Appliance (OVA). At the time, the latest version available was 2.4.0.0. Mount it on your virtualization platform, boot it, configure it with an IP, perform some post-boot tasks and you are good to go. If needed, the documentation is available [here](https://support.ruckuswireless.com/documents/5718-ruckus-iot-2-4-0-0-ga-controller-installation-guide). 
 
@@ -182,7 +190,7 @@ sos_entry.cpython-38-x86_64-linux-gnu.so: ELF 64-bit LSB shared object, x86-64, 
 ```
 
 I tried loading it in Binary Ninja hoping to get some more understanding, but for me it was even more confusing.
-![sos_entry.cpython-38-x86_64-linux-gnu.so in Binary Ninja](/assets/img/5/ruckus-vriot-sos_entry-binary-ninja.png)
+![sos_entry.cpython-38-x86_64-linux-gnu.so in Binary Ninja](/assets/img/5/ruckus-vriot-sos_entry-binary-ninja.webp)
 
 So I took another approach. Loading it in Python required installing Python 3.8, as it was compiled with that specific version (`cpython-38` is the giveaway). Let's see what it does.
 
@@ -305,7 +313,7 @@ Exploitation video:
 
 With unauthenticated remote root access confirmed, the attack chain is complete: hardcoded credentials, restricted shell bypass via SSH port forwarding, Docker group privilege escalation and finally - root. Attack Vector is Network, Privileges Required are None since the credentials are hardcoded in the appliance, and Scope is Changed as the exploit crosses from the restricted shell into the host OS via Docker container escape. As a controller managing connected IoT devices, the impact on subsequent systems further justifies the Critical severity.
 
-# IOCs, Remediation and References
+## IOCs, Remediation and References
 
 **Indicators of Compromise**
 
@@ -334,7 +342,7 @@ Authentication and Access Control](https://support.ruckuswireless.com/security_b
 - **CVE-2025-69426** - [https://www.vulncheck.com/advisories/ruckus-vriot-iot-controller-hardcoded-ssh-credentials-rce](https://www.vulncheck.com/advisories/ruckus-vriot-iot-controller-hardcoded-ssh-credentials-rce)
 * **NVD** - [https://nvd.nist.gov/vuln/detail/CVE-2025-69426](https://nvd.nist.gov/vuln/detail/CVE-2025-69426)
 
-# Outro
+## Outro
 
 Both issues were responsibly disclosed to CommScope via HackerOne and fixed in RUCKUS IoT 3.0.0.0. Vendor cooperation was solid throughout. The use of a restricted shell, disabled SCP, and blocked PTY created a convincing illusion of a locked-down support account, but SSH port forwarding to a Docker socket disagreed.
 
