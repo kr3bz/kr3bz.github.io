@@ -4,16 +4,24 @@ title: "Commanding the riot: RUCKUS vRIoT CVE-2025-69425"
 date: 2026-04-21 17:19 +0200
 description: "Obtaining unauthenticated remote root access on RUCKUS IoT Controller via the commander.py network-exposed service"
 categories: [Vulnerability Research]
-tags: [Ruckus, CommScope, vulnerability-research, CVE-2025-69425]
+tags: [RUCKUS, CommScope, vulnerability-research, hardcoded-credentials, rce, CVE-2025-69425]
+image:
+  path: /assets/img/6/ruckus-vriot-rce-network-capture.webp
+  alt: "Wireshark capture of the RUCKUS vRIoT commander.py exploit"
 ---
 
-# Intro
+> **TL;DR** - **CVE-2025-69425** (CVSS 10.0): the `commander.py` service on the RUCKUS IoT Controller (vRIoT) runs as root and listens on TCP 2004. Its authentication (a static SHA256 token plus a TOTP) is built on secrets hardcoded in the appliance, so an unauthenticated network attacker can **execute commands as root**.
+>
+> **Affected:** RUCKUS IoT 2.3.0.0 and later, before 3.0.0.0. **Fixed in:** RUCKUS IoT 3.0.0.0, which no longer exposes the service. **Part 1:** [CVE-2025-69426, hardcoded SSH credentials](/posts/ruckus-vriot-hardcoded-credentials/)
+{: .prompt-info }
+
+## Intro
 
 In my previous blog post I wrote about how I achieved remote root access to the Ruckus IoT Controller via hardcoded SSH credentials and Docker socket abuse. If you are following along, all the setup-related stuff and initial access can be found [here](/posts/ruckus-vriot-hardcoded-credentials/). That vulnerability chain involved a custom restricted shell, a MAC-based emergency authentication system, and ultimately leveraging Docker group membership for privilege escalation.
 
 But I had a hunch that told me to look around the appliance a bit more, as with [Ruckus Network Director](/posts/ruckus-network-director-hardcoded-credentials/). With root access on the vRIoT appliance established, I decided to dig deeper into the filesystem and running processes.
 
-# Command Execution as Root via Hardcoded Tokens for the Network-Exposed Service (CVE-2025-69425)
+## Command Execution as Root via Hardcoded Tokens for the Network-Exposed Service (CVE-2025-69425)
 
 While analyzing the vRIoT filesystem after obtaining root access, one process caught my attention:
 
@@ -156,7 +164,7 @@ Second, the authentication. There are two gates before `run` at line 53 gets cal
 
 Both have to pass. Let's break them in order.
 
-## Gate 1 — The static SHA256 token
+### Gate 1 — The static SHA256 token
 
 The target hash is in the source. The question is: what plaintext produces it? Brute-forcing an arbitrary-length SHA256 isn't a plan, so the first move I made was to grep the filesystem for the hash. The hash did not appear anywhere else. However, digging around a bit, I saw that the `verify_totp.py` also imports `opspack.sysinfo` package, which contains a module called `cmd.py` and inside of it I discovered a hardcoded token value:
 
@@ -175,7 +183,7 @@ If we hash this static token value with SHA256, we get the following:
 
 And that matches the static token at line 12 of the `commander.py`. Gate 1 down.
 
-## Gate 2 — The TOTP
+### Gate 2 — The TOTP
 
 `commander.py` delegates TOTP validation to `verify_totp.py` inside the `riot-admin-api` container. It looks like this:
 
@@ -215,7 +223,7 @@ static_token = config.get('prestart_token', eval(base64.b64decode(configfile.env
 
 `config.get(key, default)` basically means: try MongoDB first, fall back to the second argument. Both paths lead to the same outcome: a static secret that never rotates. Whether the runtime picks the MongoDB default or the envkey fallback, an attacker with filesystem access has the TOTP seed.
 
-### The MongoDB path
+#### The MongoDB path
 
 Easiest to just ask the container for the value:
 
@@ -232,7 +240,7 @@ TOTP: KRXWWZLOEBTTMN3GMQ2DI2DKHA3WQZ3UPE4DS5DUMZTHMZZVGRTGW4Y=
 
 So, the `prestart_token` in MongoDB is a hardcoded default written at provisioning, never rotated, identical across every appliance of this version.
 
-### The envkey fallback
+#### The envkey fallback
 
 Even if the `prestart_token` in MongoDB was empty, the fallback is just as exposed. The `configfile.envkey()` function returns what looks like random base64 data, but it's actually a base64-encoded Python expression that gets passed to `eval()`.
 
@@ -259,7 +267,7 @@ Walking it manually:
 
 Both paths, the MongoDB default and envkey fallback, are hardcoded. Only question is which one the runtime picks.
 
-## Putting it together
+### Putting it together
 
 With the TOTP secret `KRXWWZLOEBTTMN3GMQ2DI2DKHA3WQZ3UPE4DS5DUMZTHMZZVGRTGW4Y=` and the static token `dpj$wX0NUzRt0t2OgwWfvgd`, we can build the three TOTP headers:
 
@@ -278,7 +286,7 @@ def generate_totp_payload():
 
 There's no rate limiting on authentication attempts, and the TOTP code isn't tied to a specific client. Anyone who knows the secret can generate valid codes at will. The `valid_window=10` parameter in `verify_totp.py` makes it even easier: the server accepts codes from 10 time steps in either direction, giving you roughly ±5 minutes of tolerance.
 
-## Clock synchronization gotcha
+### Clock synchronization gotcha
 
 During various testing, the exploit sometimes failed due to clock skew between the target and my system. TOTP is time-sensitive with the ±5 minute tolerance mentioned above, but the target's clock was 9 hours off. The solution I opted for to auto-detect the time difference is the HTTP `Date` header from the appliance's web service on port 443. The exploit now automatically compensates for clock drift, making it more reliable in real-world scenarios where appliances are in different time zones or manually set times.
 
@@ -286,7 +294,7 @@ During various testing, the exploit sometimes failed due to clock skew between t
 
 RCE time.
 
-## RCE
+### RCE
 
 ```shell
 $ python3 CVE-2025-69425.py 10.0.13.139 'whoami;hostname'
@@ -301,7 +309,7 @@ root
 vriot
 ```
 
-![Wireshark Capture](/assets/img/6/ruckus-vriot-rce-network-capture.png)
+![Wireshark Capture](/assets/img/6/ruckus-vriot-rce-network-capture.webp)
 
 Exploitation video:
 <video width="100%" controls>
@@ -335,28 +343,28 @@ uid=0(root) gid=0(root) groups=0(root)
 vriot
 ```
 
-# IOCs, Remediation and References
+## IOCs, Remediation and References
 
-## Indicators of Compromise
+### Indicators of Compromise
 
 - Inbound connections to `tcp/2004` on a vRIoT appliance from anything other than the management network.
 - Unexpected `commander.py` child processes — the service spawns one `docker exec ... verify_totp.py` per request, so an unusual volume of those in process accounting is a signal.
 - Reverse shell outbound connections from the vRIoT host, especially from `python3` children of `commander.py`.
 
-## Remediation
+### Remediation
 
 - Upgrade to RUCKUS IoT 3.0.0.0 or later. All versions from 2.3.0.0 are vulnerable. The patched version removes the network exposure of `commander.py` entirely and the service no longer listens on 2004.
 - Restrict network access to TCP port 2004 at the perimeter until patched.
 - Isolate vRIoT appliances on a dedicated management VLAN.
 - Reset credentials after upgrading, just on principle.
 
-## References
+### References
 
 - **Vendor Advisory** - [RUCKUS IoT Controller: Vulnerabilities in Management Interface Authentication and Access Control](https://support.ruckuswireless.com/security_bulletins/336)
 - **CVE-2025-69425** - [https://www.vulncheck.com/advisories/ruckus-vriot-iot-controller-hardcoded-tokens-rce](https://www.vulncheck.com/advisories/ruckus-vriot-iot-controller-hardcoded-tokens-rce)
 * **NVD** - [https://nvd.nist.gov/vuln/detail/CVE-2025-69425](https://nvd.nist.gov/vuln/detail/CVE-2025-69425)
 
-# Outro
+## Outro
 
 The Ruckus team quickly acknowledged the report submitted via HackerOne and fixed the issues in a new release. 
 

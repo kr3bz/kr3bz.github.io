@@ -27,6 +27,11 @@ social:
     - https://github.com/kr3bz
     - https://www.linkedin.com/in/ivanracic/
 
+# Site-wide author, used by jekyll-seo-tag for the BlogPosting JSON-LD
+author:
+  name: Ivan Racic
+  url: https://www.kr3bz.wtf/about/
+
 analytics:
   google:
     id: G-KTC4VWQY4M

